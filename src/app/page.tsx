@@ -20,10 +20,29 @@ import {
   TrendingUp,
   AlertTriangle,
   RefreshCw,
+  MapPin,
+  GraduationCap,
+  DollarSign,
+  Clock,
+  Building2,
+  Wrench,
+  ListTodo,
+  Sparkles,
+  Plus,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -55,6 +74,20 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 // Types
+interface JDFormData {
+  jobTitle: string;
+  department: string;
+  employmentType: string;
+  experienceLevel: string;
+  location: string;
+  salaryRange: string;
+  requiredSkills: string[];
+  preferredSkills: string[];
+  education: string;
+  responsibilities: string;
+  additionalNotes: string;
+}
+
 interface CandidateListItem {
   id: string;
   fileName: string;
@@ -78,8 +111,24 @@ interface CandidateDetail extends CandidateListItem {
   extractedText?: string;
 }
 
+const INITIAL_JD_FORM: JDFormData = {
+  jobTitle: "",
+  department: "",
+  employmentType: "",
+  experienceLevel: "",
+  location: "",
+  salaryRange: "",
+  requiredSkills: [],
+  preferredSkills: [],
+  education: "",
+  responsibilities: "",
+  additionalNotes: "",
+};
+
 export default function Dashboard() {
-  const [jobDescription, setJobDescription] = useState("");
+  const [jdForm, setJdForm] = useState<JDFormData>(INITIAL_JD_FORM);
+  const [skillInput, setSkillInput] = useState("");
+  const [prefSkillInput, setPrefSkillInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -97,6 +146,72 @@ export default function Dashboard() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Compose JD from form data
+  const composeJobDescription = (form: JDFormData): string => {
+    const parts: string[] = [];
+
+    if (form.jobTitle) parts.push(`Job Title: ${form.jobTitle}`);
+    if (form.department) parts.push(`Department: ${form.department}`);
+    if (form.employmentType) parts.push(`Employment Type: ${form.employmentType}`);
+    if (form.experienceLevel) parts.push(`Experience Level: ${form.experienceLevel}`);
+    if (form.location) parts.push(`Location: ${form.location}`);
+    if (form.salaryRange) parts.push(`Salary Range: ${form.salaryRange}`);
+
+    if (form.requiredSkills.length > 0) {
+      parts.push(`Required Skills: ${form.requiredSkills.join(", ")}`);
+    }
+    if (form.preferredSkills.length > 0) {
+      parts.push(`Preferred Skills: ${form.preferredSkills.join(", ")}`);
+    }
+    if (form.education) parts.push(`Education/Qualifications: ${form.education}`);
+    if (form.responsibilities) parts.push(`Key Responsibilities:\n${form.responsibilities}`);
+    if (form.additionalNotes) parts.push(`Additional Notes: ${form.additionalNotes}`);
+
+    return parts.join("\n");
+  };
+
+  // Validate form
+  const isFormValid = (): boolean => {
+    return jdForm.jobTitle.trim().length > 0 && jdForm.responsibilities.trim().length > 0;
+  };
+
+  // Skill tag management
+  const addRequiredSkill = () => {
+    const skill = skillInput.trim();
+    if (skill && !jdForm.requiredSkills.includes(skill)) {
+      setJdForm((prev) => ({
+        ...prev,
+        requiredSkills: [...prev.requiredSkills, skill],
+      }));
+    }
+    setSkillInput("");
+  };
+
+  const removeRequiredSkill = (skill: string) => {
+    setJdForm((prev) => ({
+      ...prev,
+      requiredSkills: prev.requiredSkills.filter((s) => s !== skill),
+    }));
+  };
+
+  const addPreferredSkill = () => {
+    const skill = prefSkillInput.trim();
+    if (skill && !jdForm.preferredSkills.includes(skill)) {
+      setJdForm((prev) => ({
+        ...prev,
+        preferredSkills: [...prev.preferredSkills, skill],
+      }));
+    }
+    setPrefSkillInput("");
+  };
+
+  const removePreferredSkill = (skill: string) => {
+    setJdForm((prev) => ({
+      ...prev,
+      preferredSkills: prev.preferredSkills.filter((s) => s !== skill),
+    }));
+  };
 
   // Fetch candidates on mount
   const fetchCandidates = useCallback(async () => {
@@ -167,10 +282,12 @@ export default function Dashboard() {
 
   // Upload handler
   const handleUpload = async () => {
-    if (!jobDescription.trim()) {
+    const composedJD = composeJobDescription(jdForm);
+
+    if (!isFormValid()) {
       toast({
-        title: "Missing Job Description",
-        description: "Please enter a job description before uploading resumes.",
+        title: "Incomplete Job Description",
+        description: "Please fill in at least the Job Title and Key Responsibilities.",
         variant: "destructive",
       });
       return;
@@ -194,7 +311,7 @@ export default function Dashboard() {
       const file = files[i];
       const formData = new FormData();
       formData.append("resume", file);
-      formData.append("jobDescription", jobDescription);
+      formData.append("jobDescription", composedJD);
 
       try {
         const res = await fetch("/api/upload", {
@@ -371,31 +488,298 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Upload Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Job Description Input */}
-          <Card className="shadow-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+          {/* Job Description Form */}
+          <Card className="shadow-sm lg:col-span-3">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4 text-emerald-600" />
                 Job Description
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Textarea
-                placeholder="Paste the job description here. Include role title, required qualifications, experience level, key skills, and responsibilities..."
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                className="min-h-[240px] resize-y text-sm"
-              />
-              <p className="text-xs text-gray-400 mt-2">
-                {jobDescription.length} characters • Minimum 20 characters
-                required
-              </p>
+            <CardContent className="space-y-5">
+              {/* Row 1: Job Title & Department */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-600">
+                    <Briefcase className="h-3 w-3 inline mr-1" />
+                    Job Title <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    placeholder="e.g. Senior Full-Stack Engineer"
+                    value={jdForm.jobTitle}
+                    onChange={(e) =>
+                      setJdForm((prev) => ({ ...prev, jobTitle: e.target.value }))
+                    }
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-600">
+                    <Building2 className="h-3 w-3 inline mr-1" />
+                    Department
+                  </Label>
+                  <Input
+                    placeholder="e.g. Engineering"
+                    value={jdForm.department}
+                    onChange={(e) =>
+                      setJdForm((prev) => ({ ...prev, department: e.target.value }))
+                    }
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Employment Type & Experience Level */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-600">
+                    <Clock className="h-3 w-3 inline mr-1" />
+                    Employment Type
+                  </Label>
+                  <Select
+                    value={jdForm.employmentType}
+                    onValueChange={(value) =>
+                      setJdForm((prev) => ({ ...prev, employmentType: value }))
+                    }
+                  >
+                    <SelectTrigger className="w-full text-sm">
+                      <SelectValue placeholder="Select type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Full-time">Full-time</SelectItem>
+                      <SelectItem value="Part-time">Part-time</SelectItem>
+                      <SelectItem value="Contract">Contract</SelectItem>
+                      <SelectItem value="Freelance">Freelance</SelectItem>
+                      <SelectItem value="Internship">Internship</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-600">
+                    <TrendingUp className="h-3 w-3 inline mr-1" />
+                    Experience Level
+                  </Label>
+                  <Select
+                    value={jdForm.experienceLevel}
+                    onValueChange={(value) =>
+                      setJdForm((prev) => ({ ...prev, experienceLevel: value }))
+                    }
+                  >
+                    <SelectTrigger className="w-full text-sm">
+                      <SelectValue placeholder="Select level..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Entry-level (0-2 years)">Entry-level (0-2 years)</SelectItem>
+                      <SelectItem value="Mid-level (3-5 years)">Mid-level (3-5 years)</SelectItem>
+                      <SelectItem value="Senior (5-8 years)">Senior (5-8 years)</SelectItem>
+                      <SelectItem value="Lead (8-12 years)">Lead (8-12 years)</SelectItem>
+                      <SelectItem value="Principal/Staff (12+ years)">Principal/Staff (12+ years)</SelectItem>
+                      <SelectItem value="Executive/Director">Executive/Director</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Row 3: Location & Salary Range */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-600">
+                    <MapPin className="h-3 w-3 inline mr-1" />
+                    Location
+                  </Label>
+                  <Input
+                    placeholder="e.g. San Francisco, CA / Remote"
+                    value={jdForm.location}
+                    onChange={(e) =>
+                      setJdForm((prev) => ({ ...prev, location: e.target.value }))
+                    }
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-600">
+                    <DollarSign className="h-3 w-3 inline mr-1" />
+                    Salary Range
+                  </Label>
+                  <Input
+                    placeholder="e.g. $120,000 - $160,000"
+                    value={jdForm.salaryRange}
+                    onChange={(e) =>
+                      setJdForm((prev) => ({ ...prev, salaryRange: e.target.value }))
+                    }
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Required Skills (Tag Input) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-600">
+                  <Wrench className="h-3 w-3 inline mr-1" />
+                  Required Skills
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Type a skill and press Enter or click Add"
+                    value={skillInput}
+                    onChange={(e) => setSkillInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addRequiredSkill();
+                      }
+                    }}
+                    className="text-sm flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="px-3 shrink-0"
+                    onClick={addRequiredSkill}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                {jdForm.requiredSkills.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {jdForm.requiredSkills.map((skill) => (
+                      <Badge
+                        key={skill}
+                        variant="secondary"
+                        className="gap-1 pr-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                      >
+                        {skill}
+                        <button
+                          type="button"
+                          onClick={() => removeRequiredSkill(skill)}
+                          className="ml-0.5 rounded-full p-0.5 hover:bg-emerald-200"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Row 5: Preferred Skills (Tag Input) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-600">
+                  <Sparkles className="h-3 w-3 inline mr-1" />
+                  Preferred Skills (Nice-to-have)
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Type a skill and press Enter or click Add"
+                    value={prefSkillInput}
+                    onChange={(e) => setPrefSkillInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addPreferredSkill();
+                      }
+                    }}
+                    className="text-sm flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="px-3 shrink-0"
+                    onClick={addPreferredSkill}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                {jdForm.preferredSkills.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {jdForm.preferredSkills.map((skill) => (
+                      <Badge
+                        key={skill}
+                        variant="outline"
+                        className="gap-1 pr-1 text-xs"
+                      >
+                        {skill}
+                        <button
+                          type="button"
+                          onClick={() => removePreferredSkill(skill)}
+                          className="ml-0.5 rounded-full p-0.5 hover:bg-gray-100"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Row 6: Education/Qualifications */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-600">
+                  <GraduationCap className="h-3 w-3 inline mr-1" />
+                  Education / Qualifications
+                </Label>
+                <Input
+                  placeholder="e.g. B.S. in Computer Science or equivalent experience"
+                  value={jdForm.education}
+                  onChange={(e) =>
+                    setJdForm((prev) => ({ ...prev, education: e.target.value }))
+                  }
+                  className="text-sm"
+                />
+              </div>
+
+              {/* Row 7: Key Responsibilities */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-600">
+                  <ListTodo className="h-3 w-3 inline mr-1" />
+                  Key Responsibilities <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  placeholder="Describe the main responsibilities and duties for this role...&#10;&#10;e.g.&#10;- Lead development of scalable microservices&#10;- Mentor junior engineers&#10;- Collaborate with product and design teams"
+                  value={jdForm.responsibilities}
+                  onChange={(e) =>
+                    setJdForm((prev) => ({
+                      ...prev,
+                      responsibilities: e.target.value,
+                    }))
+                  }
+                  className="min-h-[100px] resize-y text-sm"
+                />
+              </div>
+
+              {/* Row 8: Additional Notes */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-600">
+                  Additional Notes
+                </Label>
+                <Textarea
+                  placeholder="Any other requirements, company culture notes, or screening criteria..."
+                  value={jdForm.additionalNotes}
+                  onChange={(e) =>
+                    setJdForm((prev) => ({
+                      ...prev,
+                      additionalNotes: e.target.value,
+                    }))
+                  }
+                  className="min-h-[60px] resize-y text-sm"
+                />
+              </div>
+
+              {/* Form validation hint */}
+              {!isFormValid() && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Job Title and Key Responsibilities are required to screen resumes.
+                </p>
+              )}
             </CardContent>
           </Card>
 
           {/* File Upload */}
-          <Card className="shadow-sm">
+          <Card className="shadow-sm lg:col-span-2">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <FileUp className="h-4 w-4 text-emerald-600" />
@@ -439,7 +823,7 @@ export default function Dashboard() {
 
               {/* File List */}
               {files.length > 0 && (
-                <div className="mt-4 space-y-2 max-h-40 overflow-y-auto">
+                <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
                   {files.map((file, index) => (
                     <div
                       key={index}
@@ -485,7 +869,7 @@ export default function Dashboard() {
               <Button
                 className="w-full mt-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
                 onClick={handleUpload}
-                disabled={isUploading || files.length === 0}
+                disabled={isUploading || files.length === 0 || !isFormValid()}
               >
                 {isUploading ? (
                   <>
@@ -499,6 +883,25 @@ export default function Dashboard() {
                   </>
                 )}
               </Button>
+
+              {/* Quick tips */}
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
+                <p className="text-xs font-medium text-gray-600 mb-1.5">Tips for best results:</p>
+                <ul className="text-xs text-gray-500 space-y-1">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-500 mt-0.5">•</span>
+                    Fill in as many JD fields as possible
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-500 mt-0.5">•</span>
+                    Add specific required skills for better matching
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-500 mt-0.5">•</span>
+                    Upload multiple resumes to compare candidates
+                  </li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -588,7 +991,7 @@ export default function Dashboard() {
                   No candidates screened yet
                 </p>
                 <p className="text-gray-400 text-sm mt-1">
-                  Upload resumes above to start screening
+                  Fill in the job description form and upload resumes above to start screening
                 </p>
               </div>
             ) : (
@@ -905,7 +1308,7 @@ export default function Dashboard() {
                     <Briefcase className="h-4 w-4 text-emerald-600" />
                     Job Description Used
                   </h4>
-                  <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-lg max-h-32 overflow-y-auto">
+                  <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-lg max-h-32 overflow-y-auto whitespace-pre-line">
                     {selectedCandidate.jobDescription}
                   </p>
                 </div>
