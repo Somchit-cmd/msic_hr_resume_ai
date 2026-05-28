@@ -12,17 +12,20 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Shield,
+  UserPlus,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -31,14 +34,40 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter both email and password.");
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
     setIsLoading(true);
 
     try {
+      // Register
+      const registerRes = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const registerData = await registerRes.json();
+
+      if (!registerRes.ok) {
+        setError(registerData.error || "Registration failed. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Auto sign in after registration
       const result = await signIn("credentials", {
         email,
         password,
@@ -46,7 +75,8 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError("Invalid email or password. Please try again.");
+        // Registration succeeded but auto-login failed - redirect to login
+        router.push("/login");
       } else {
         router.push("/");
         router.refresh();
@@ -68,15 +98,15 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">ResumeScreen AI</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Sign in to access the screening dashboard
+            Create your account to get started
           </p>
         </div>
 
-        {/* Login Card */}
+        {/* Register Card */}
         <Card className="shadow-lg border-gray-200/80">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg font-semibold text-center">
-              Welcome Back
+              Create Account
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -89,6 +119,26 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {/* Name */}
+              <div className="space-y-1.5">
+                <Label htmlFor="name" className="text-sm text-gray-700">
+                  Full Name
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="pl-9 text-sm"
+                    autoComplete="name"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
               {/* Email */}
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-sm text-gray-700">
@@ -99,12 +149,11 @@ export default function LoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="admin@resumescreen.ai"
+                    placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-9 text-sm"
                     autoComplete="email"
-                    autoFocus
                   />
                 </div>
               </div>
@@ -119,11 +168,11 @@ export default function LoginPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
+                    placeholder="Min. 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-9 pr-10 text-sm"
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"
@@ -139,6 +188,28 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {/* Confirm Password */}
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="confirmPassword"
+                  className="text-sm text-gray-700"
+                >
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Re-enter your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pl-9 text-sm"
+                    autoComplete="new-password"
+                  />
+                </div>
+              </div>
+
               {/* Submit Button */}
               <Button
                 type="submit"
@@ -148,47 +219,28 @@ export default function LoginPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Signing in...
+                    Creating account...
                   </>
                 ) : (
                   <>
-                    <Shield className="h-4 w-4 mr-2" />
-                    Sign In
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Create Account
                   </>
                 )}
               </Button>
             </form>
 
-            {/* Register Link */}
+            {/* Login Link */}
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
-                Don&apos;t have an account?{" "}
+                Already have an account?{" "}
                 <Link
-                  href="/register"
+                  href="/login"
                   className="text-emerald-600 hover:text-emerald-700 font-medium"
                 >
-                  Create one
+                  Sign in
                 </Link>
               </p>
-            </div>
-
-            {/* Demo Credentials */}
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
-              <p className="text-xs font-medium text-gray-600 mb-1.5">
-                Demo Credentials:
-              </p>
-              <div className="text-xs text-gray-500 space-y-0.5">
-                <p>
-                  Email:{" "}
-                  <span className="font-mono text-gray-700">
-                    admin@resumescreen.ai
-                  </span>
-                </p>
-                <p>
-                  Password:{" "}
-                  <span className="font-mono text-gray-700">admin123</span>
-                </p>
-              </div>
             </div>
           </CardContent>
         </Card>
