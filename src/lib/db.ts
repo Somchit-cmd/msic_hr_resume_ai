@@ -28,22 +28,10 @@ if (dbUrl && !dbUrl.startsWith('postgresql://') && !dbUrl.startsWith('postgres:/
   }
 }
 
-// For Neon pooled connections (-pooler endpoint), Prisma needs pgbouncer=true
-// and connection_timeout increased to handle cold starts
-if (dbUrl && dbUrl.includes('-pooler') && !dbUrl.includes('pgbouncer=true')) {
-  const separator = dbUrl.includes('?') ? '&' : '?'
-  process.env.DATABASE_URL = `${dbUrl}${separator}pgbouncer=true`
-}
-
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query'] : ['error'],
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
-      },
-    },
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
