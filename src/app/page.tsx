@@ -1821,7 +1821,7 @@ export default function Dashboard() {
 
       {/* Candidate Detail Modal */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] w-[95vw]">
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] w-full sm:w-[95vw]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <User className="h-5 w-5 text-emerald-600" />
