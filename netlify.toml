@@ -7,7 +7,9 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  NPM_FLAGS = "--version"
+
+[functions]
+  node_bundler = "esbuild"
 
 [[headers]]
   for = "/api/*"

@@ -52,7 +52,7 @@ export function sanitizeText(text: string): string {
 function getUploadsDir(): string {
   // On Netlify/serverless, use /tmp for temporary file storage
   // On local dev, use ./uploads
-  const isServerless = process.env.NETLELY || process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const isServerless = process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME;
   if (isServerless) {
     return path.join(os.tmpdir(), 'resume-uploads');
   }

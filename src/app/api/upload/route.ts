@@ -5,6 +5,16 @@ import { db } from '@/lib/db';
 import { validateFile, saveFile, extractTextFromFile, sanitizeText } from '@/lib/file-processor';
 import { analyzeResume } from '@/lib/ai-analyzer';
 
+// Timeout wrapper for serverless environments (Netlify has ~10-26s limit)
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(message)), ms)
+    ),
+  ]);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -44,13 +54,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Save file to disk
+    // Save file to disk (uses /tmp on serverless)
     const filePath = await saveFile(file);
 
     // Extract text from file
     let extractedText: string;
     try {
-      extractedText = await extractTextFromFile(filePath, file.name);
+      extractedText = await withTimeout(
+        extractTextFromFile(filePath, file.name),
+        15000,
+        'File text extraction timed out'
+      );
     } catch (error) {
       return NextResponse.json(
         { error: `Failed to extract text from file: ${(error as Error).message}` },
@@ -65,33 +79,40 @@ export async function POST(request: NextRequest) {
       userId = (session?.user as { id?: string })?.id;
     } catch { /* ignore */ }
 
-    // Analyze resume with AI
+    // Analyze resume with AI (with 25s timeout for serverless)
     const sanitizedJD = sanitizeText(jobDescription);
     let analysis;
     try {
-      analysis = await analyzeResume(extractedText, sanitizedJD, userId);
+      analysis = await withTimeout(
+        analyzeResume(extractedText, sanitizedJD, userId),
+        25000,
+        'AI analysis timed out. The server may be busy, please try again.'
+      );
     } catch (error) {
       // Save the candidate with error status
-      await db.candidate.create({
-        data: {
-          fileName: file.name,
-          filePath,
-          firstName: '',
-          lastName: '',
-          email: '',
-          phone: '',
-          department: jdDepartment || '',
-          jobTitle: jdJobTitle || '',
-          jobDescription: sanitizedJD,
-          candidateOverview: 'Analysis failed',
-          scoring: 0,
-          assessment: `AI analysis failed: ${(error as Error).message}`,
-          professionalAudit: JSON.stringify({ pros: [], cons: [], red_flags: ['AI analysis failed'] }),
-          recommendation: 'Error',
-          extractedText,
-          status: 'error',
-        },
-      });
+      try {
+        await db.candidate.create({
+          data: {
+            fileName: file.name,
+            filePath,
+            firstName: '',
+            lastName: '',
+            email: '',
+            phone: '',
+            department: jdDepartment || '',
+            jobTitle: jdJobTitle || '',
+            jobDescription: sanitizedJD,
+            candidateOverview: 'Analysis failed',
+            scoring: 0,
+            assessment: `AI analysis failed: ${(error as Error).message}`,
+            professionalAudit: JSON.stringify({ pros: [], cons: [], red_flags: ['AI analysis failed'] }),
+            recommendation: 'Error',
+            extractedText: extractedText.substring(0, 5000),
+            status: 'error',
+          },
+        });
+      } catch { /* ignore db error */ }
+      
       return NextResponse.json(
         { error: `AI analysis failed: ${(error as Error).message}` },
         { status: 500 }
@@ -115,7 +136,7 @@ export async function POST(request: NextRequest) {
         assessment: analysis.assessment,
         professionalAudit: JSON.stringify(analysis.professional_audit),
         recommendation: analysis.recommendation,
-        extractedText,
+        extractedText: extractedText.substring(0, 5000),
         status: 'completed',
       },
     });
