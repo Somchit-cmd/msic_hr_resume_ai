@@ -30,6 +30,11 @@ import {
   Sparkles,
   Plus,
   X,
+  Bookmark,
+  BookmarkPlus,
+  FolderOpen,
+  Copy,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +61,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -113,6 +120,25 @@ interface CandidateDetail extends CandidateListItem {
   extractedText?: string;
 }
 
+interface JDTemplateItem {
+  id: string;
+  name: string;
+  jobTitle: string;
+  department: string;
+  employmentType: string;
+  experienceLevel: string;
+  location: string;
+  salaryRange: string;
+  requiredSkills: string;
+  preferredSkills: string;
+  education: string;
+  responsibilities: string;
+  additionalNotes: string;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const INITIAL_JD_FORM: JDFormData = {
   jobTitle: "",
   department: "",
@@ -149,6 +175,17 @@ export default function Dashboard() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Template state
+  const [templates, setTemplates] = useState<JDTemplateItem[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editTemplateName, setEditTemplateName] = useState("");
 
   // Compose JD from form data
   const composeJobDescription = (form: JDFormData): string => {
@@ -235,9 +272,123 @@ export default function Dashboard() {
     }
   }, [toast]);
 
+  // Fetch templates
+  const fetchTemplates = useCallback(async () => {
+    setIsLoadingTemplates(true);
+    try {
+      const res = await fetch("/api/templates");
+      const data = await res.json();
+      if (data.templates) {
+        setTemplates(data.templates);
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to load templates",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     fetchCandidates();
-  }, [fetchCandidates]);
+    fetchTemplates();
+  }, [fetchCandidates, fetchTemplates]);
+
+  // Save current JD form as template
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) {
+      toast({ title: "Error", description: "Please enter a template name.", variant: "destructive" });
+      return;
+    }
+    setIsSavingTemplate(true);
+    try {
+      const res = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: templateName.trim(),
+          ...jdForm,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Template Saved", description: `"${templateName.trim()}" has been saved as a template.` });
+        setTemplateName("");
+        setIsSaveDialogOpen(false);
+        fetchTemplates();
+      } else {
+        toast({ title: "Error", description: data.error || "Failed to save template", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to save template", variant: "destructive" });
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  };
+
+  // Load a template into the form
+  const handleLoadTemplate = async (template: JDTemplateItem) => {
+    setJdForm({
+      jobTitle: template.jobTitle,
+      department: template.department,
+      employmentType: template.employmentType,
+      experienceLevel: template.experienceLevel,
+      location: template.location,
+      salaryRange: template.salaryRange,
+      requiredSkills: JSON.parse(template.requiredSkills || "[]"),
+      preferredSkills: JSON.parse(template.preferredSkills || "[]"),
+      education: template.education,
+      responsibilities: template.responsibilities,
+      additionalNotes: template.additionalNotes,
+    });
+    setIsTemplatePickerOpen(false);
+    // Increment usage count
+    try {
+      await fetch(`/api/templates/${template.id}`, { method: "PATCH" });
+      fetchTemplates();
+    } catch { /* ignore */ }
+    toast({ title: "Template Loaded", description: `"${template.name}" has been applied to the form.` });
+  };
+
+  // Delete a template
+  const handleDeleteTemplate = async () => {
+    if (!deleteTemplateId) return;
+    try {
+      const res = await fetch(`/api/templates/${deleteTemplateId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast({ title: "Template Deleted", description: "The template has been removed." });
+        setTemplates((prev) => prev.filter((t) => t.id !== deleteTemplateId));
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to delete template", variant: "destructive" });
+    }
+    setDeleteTemplateId(null);
+  };
+
+  // Rename a template
+  const handleRenameTemplate = async () => {
+    if (!editingTemplateId || !editTemplateName.trim()) return;
+    try {
+      const res = await fetch(`/api/templates/${editingTemplateId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editTemplateName.trim() }),
+      });
+      if (res.ok) {
+        toast({ title: "Template Renamed", description: "Template name updated." });
+        setTemplates((prev) =>
+          prev.map((t) => t.id === editingTemplateId ? { ...t, name: editTemplateName.trim() } : t)
+        );
+        setEditingTemplateId(null);
+        setEditTemplateName("");
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to rename template", variant: "destructive" });
+    }
+  };
 
   // Drag & Drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -514,10 +665,36 @@ export default function Dashboard() {
           {/* Job Description Form */}
           <Card className="shadow-sm lg:col-span-3">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <FileText className="h-4 w-4 text-emerald-600" />
-                Job Description
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-emerald-600" />
+                  Job Description
+                </CardTitle>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-7 text-xs"
+                    onClick={() => setIsTemplatePickerOpen(true)}
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Templates{templates.length > 0 ? ` (${templates.length})` : ""}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-7 text-xs"
+                    onClick={() => {
+                      setTemplateName(jdForm.jobTitle || "");
+                      setIsSaveDialogOpen(true);
+                    }}
+                    disabled={!isFormValid()}
+                  >
+                    <BookmarkPlus className="h-3.5 w-3.5" />
+                    Save as Template
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-5">
               {/* Row 1: Job Title & Department */}
@@ -1340,7 +1517,7 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Candidate Confirmation Dialog */}
       <AlertDialog
         open={deleteId !== null}
         onOpenChange={(open) => !open && setDeleteId(null)}
@@ -1357,6 +1534,201 @@ export default function Dashboard() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteCandidate}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Save Template Dialog */}
+      <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookmarkPlus className="h-5 w-5 text-emerald-600" />
+              Save as Template
+            </DialogTitle>
+            <DialogDescription>
+              Save your current job description form as a reusable template.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="templateName" className="text-sm text-gray-700">
+                Template Name
+              </Label>
+              <Input
+                id="templateName"
+                placeholder="e.g. Senior Full-Stack Engineer"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSaveTemplate();
+                  }
+                }}
+                className="text-sm"
+                autoFocus
+              />
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg border space-y-1.5">
+              <p className="text-xs font-medium text-gray-600">Preview:</p>
+              <p className="text-xs text-gray-500">Job Title: {jdForm.jobTitle}</p>
+              <p className="text-xs text-gray-500">Department: {jdForm.department || "—"}</p>
+              <p className="text-xs text-gray-500">Skills: {jdForm.requiredSkills.length} required, {jdForm.preferredSkills.length} preferred</p>
+              <p className="text-xs text-gray-500">Responsibilities: {jdForm.responsibilities ? `${jdForm.responsibilities.substring(0, 80)}...` : "—"}</p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsSaveDialogOpen(false)} className="text-sm">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveTemplate}
+              disabled={isSavingTemplate || !templateName.trim()}
+              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm"
+            >
+              {isSavingTemplate ? (
+                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Saving...</>
+              ) : (
+                <><Bookmark className="h-4 w-4 mr-1.5" />Save Template</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Picker Dialog */}
+      <Dialog open={isTemplatePickerOpen} onOpenChange={setIsTemplatePickerOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-emerald-600" />
+              JD Templates
+            </DialogTitle>
+            <DialogDescription>
+              Select a template to load into the form. Your current form data will be replaced.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            {isLoadingTemplates ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-500">Loading templates...</span>
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="text-center py-8">
+                <Bookmark className="h-10 w-10 mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500 font-medium text-sm">No templates saved yet</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  Fill in a job description form and click "Save as Template" to create your first template.
+                </p>
+              </div>
+            ) : (
+              <ScrollArea className="max-h-96">
+                <div className="space-y-2 pr-2">
+                  {templates.map((template) => (
+                    <div
+                      key={template.id}
+                      className="group p-3 rounded-lg border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          {editingTemplateId === template.id ? (
+                            <div className="flex items-center gap-2 mb-1">
+                              <Input
+                                value={editTemplateName}
+                                onChange={(e) => setEditTemplateName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleRenameTemplate();
+                                  if (e.key === "Escape") { setEditingTemplateId(null); setEditTemplateName(""); }
+                                }}
+                                className="h-7 text-sm"
+                                autoFocus
+                              />
+                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs shrink-0" onClick={handleRenameTemplate}>Save</Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs shrink-0" onClick={() => { setEditingTemplateId(null); setEditTemplateName(""); }}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <h4 className="font-medium text-sm text-gray-900 truncate">{template.name}</h4>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                              {template.jobTitle}
+                            </Badge>
+                            {template.department && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                                {template.department}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-400">
+                            <span>{JSON.parse(template.requiredSkills || "[]").length} req. skills</span>
+                            <span>Used {template.usageCount} time{template.usageCount !== 1 ? "s" : ""}</span>
+                            <span>{new Date(template.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => handleLoadTemplate(template)}
+                            title="Load template"
+                          >
+                            <Copy className="h-3.5 w-3.5 text-emerald-600" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => {
+                              setEditingTemplateId(template.id);
+                              setEditTemplateName(template.name);
+                            }}
+                            title="Rename template"
+                          >
+                            <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setDeleteTemplateId(template.id)}
+                            title="Delete template"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Template Confirmation Dialog */}
+      <AlertDialog
+        open={deleteTemplateId !== null}
+        onOpenChange={(open) => !open && setDeleteTemplateId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this template? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTemplate}
               className="bg-red-600 hover:bg-red-700"
             >
               Delete

@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String      @id @default(cuid())
+  email     String      @unique
   name      String
   password  String
-  role      String   @default("hr")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      String      @default("hr")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  templates JDTemplate[]
 }
 
 model Candidate {
@@ -31,4 +32,26 @@ model Candidate {
   status            String   @default("completed") // completed, processing, error
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+model JDTemplate {
+  id              String   @id @default(cuid())
+  name            String   // Template name, e.g. "Senior Frontend Engineer"
+  jobTitle        String
+  department      String   @default("")
+  employmentType  String   @default("")
+  experienceLevel String   @default("")
+  location        String   @default("")
+  salaryRange     String   @default("")
+  requiredSkills  String   @default("[]") // JSON array string
+  preferredSkills String   @default("[]") // JSON array string
+  education       String   @default("")
+  responsibilities String  @default("")
+  additionalNotes String   @default("")
+  usageCount      Int      @default(0)
+  userId          String?  // null = global/default template
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
