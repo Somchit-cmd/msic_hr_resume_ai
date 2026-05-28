@@ -485,7 +485,7 @@ export default function Dashboard() {
   };
 
   const needsApiKey = aiSettings.provider !== "z-ai" || aiSettings.model === "z-ai-api-key";
-  const needsBaseUrl = aiSettings.provider === "custom";
+  const needsBaseUrl = aiSettings.provider === "custom" || aiSettings.provider === "openrouter";
 
   // Save current JD form as template
   const handleSaveTemplate = async () => {
@@ -2415,7 +2415,7 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Base URL (for custom provider) */}
+              {/* Base URL (for custom/OpenRouter provider) */}
               {needsBaseUrl && (
                 <div className="space-y-1.5">
                   <Label className="text-sm text-gray-700 flex items-center gap-1.5">
@@ -2423,15 +2423,25 @@ export default function Dashboard() {
                     Base URL
                   </Label>
                   <Input
-                    placeholder="e.g. https://api.your-llm.com/v1/chat/completions"
-                    value={aiSettings.baseUrl}
+                    placeholder={
+                      aiSettings.provider === "openrouter"
+                        ? "https://openrouter.ai/api/v1/chat/completions"
+                        : "e.g. https://api.your-llm.com/v1/chat/completions"
+                    }
+                    value={
+                      aiSettings.provider === "openrouter" && !aiSettings.baseUrl
+                        ? "https://openrouter.ai/api/v1/chat/completions"
+                        : aiSettings.baseUrl
+                    }
                     onChange={(e) =>
                       setAiSettings((prev) => ({ ...prev, baseUrl: e.target.value }))
                     }
                     className="text-sm"
                   />
                   <p className="text-xs text-gray-400">
-                    Must be an OpenAI-compatible chat completions endpoint.
+                    {aiSettings.provider === "openrouter"
+                      ? "OpenRouter chat completions endpoint. Leave default unless using a custom endpoint."
+                      : "Must be an OpenAI-compatible chat completions endpoint."}
                   </p>
                 </div>
               )}

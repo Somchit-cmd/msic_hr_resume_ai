@@ -204,7 +204,7 @@ async function analyzeWithZAIKey(
 }
 
 /**
- * Analyze using OpenAI-compatible API (also works with OpenRouter, Groq, etc.)
+ * Analyze using OpenAI-compatible API (also works with Groq, Together, etc.)
  */
 async function analyzeWithOpenAI(
   resumeText: string,
@@ -215,19 +215,18 @@ async function analyzeWithOpenAI(
   temperature: number,
   maxTokens: number
 ): Promise<AnalysisResult> {
-  const endpoint = baseUrl || 'https://api.openai.com/v1/chat/completions';
+  // Smart URL handling: if baseUrl doesn't end with /chat/completions, append it
+  let endpoint = baseUrl || 'https://api.openai.com/v1/chat/completions';
+  if (!endpoint.endsWith('/chat/completions')) {
+    // Remove trailing slash before appending
+    endpoint = endpoint.replace(/\/+$/, '') + '/chat/completions';
+  }
   const modelName = model === 'default' ? 'gpt-4o-mini' : model;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
   };
-
-  // Add OpenRouter-specific headers if using OpenRouter
-  if (endpoint.includes('openrouter.ai')) {
-    headers['HTTP-Referer'] = process.env.NEXTAUTH_URL || 'https://msic-hr-ai.msigsx.com';
-    headers['X-Title'] = 'HR Resume Screen AI';
-  }
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -252,6 +251,59 @@ async function analyzeWithOpenAI(
   const content = data.choices?.[0]?.message?.content;
   if (!content || content.trim().length === 0) {
     throw new Error('Empty response from AI');
+  }
+  return parseAIResponse(content);
+}
+
+/**
+ * Analyze using OpenRouter API (OpenAI-compatible with extra headers)
+ */
+async function analyzeWithOpenRouter(
+  resumeText: string,
+  jobDescription: string,
+  apiKey: string,
+  baseUrl: string | null,
+  model: string,
+  temperature: number,
+  maxTokens: number
+): Promise<AnalysisResult> {
+  const modelName = model === 'default' ? 'qwen/qwen3-235b-a22b' : model;
+  // OpenRouter default base URL
+  let endpoint = baseUrl || 'https://openrouter.ai/api/v1/chat/completions';
+  if (!endpoint.endsWith('/chat/completions')) {
+    endpoint = endpoint.replace(/\/+$/, '') + '/chat/completions';
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+    'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://msic-hr-ai.msigsx.com',
+    'X-Title': 'MSIC HR Resume AI',
+  };
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: modelName,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `## Job Description:\n${jobDescription}\n\n## Candidate Resume:\n${resumeText}\n\nAnalyze this resume against the job description and provide your assessment as a valid JSON object.` },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenRouter API error (${response.status}): ${errorText.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content || content.trim().length === 0) {
+    throw new Error('Empty response from OpenRouter');
   }
   return parseAIResponse(content);
 }
@@ -429,9 +481,12 @@ export async function analyzeResume(
           }
           return await analyzeWithZAI(resumeText, jobDescription);
 
+        case 'openrouter':
+          if (!apiKey) throw new Error('API key is required for OpenRouter');
+          return await analyzeWithOpenRouter(resumeText, jobDescription, apiKey, baseUrl, model, temperature, maxTokens);
+
         case 'openai':
         case 'custom':
-        case 'openrouter':
           if (!apiKey) throw new Error('API key is required for this provider');
           return await analyzeWithOpenAI(resumeText, jobDescription, apiKey, baseUrl, model, temperature, maxTokens);
 

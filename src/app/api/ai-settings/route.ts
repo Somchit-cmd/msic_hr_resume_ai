@@ -293,11 +293,18 @@ export async function POST(request: NextRequest) {
 
     // Test OpenAI-compatible endpoint (also handles OpenRouter and Custom)
     if (provider === "openai" || provider === "custom" || provider === "openrouter") {
-      let endpoint = baseUrl || "https://api.openai.com/v1/chat/completions";
+      let endpoint = baseUrl;
       
-      // OpenRouter default endpoint
-      if (provider === "openrouter" && !baseUrl) {
-        endpoint = "https://openrouter.ai/api/v1/chat/completions";
+      // Set default endpoint based on provider
+      if (!endpoint) {
+        endpoint = provider === "openrouter"
+          ? "https://openrouter.ai/api/v1/chat/completions"
+          : "https://api.openai.com/v1/chat/completions";
+      }
+      
+      // Smart URL handling: if endpoint doesn't end with /chat/completions, append it
+      if (!endpoint.endsWith('/chat/completions')) {
+        endpoint = endpoint.replace(/\/+$/, '') + '/chat/completions';
       }
 
       const testHeaders: Record<string, string> = {
@@ -308,11 +315,11 @@ export async function POST(request: NextRequest) {
       // Add OpenRouter-specific headers
       if (endpoint.includes("openrouter.ai")) {
         testHeaders["HTTP-Referer"] = process.env.NEXTAUTH_URL || "https://msic-hr-ai.msigsx.com";
-        testHeaders["X-Title"] = "HR Resume Screen AI";
+        testHeaders["X-Title"] = "MSIC HR Resume AI";
       }
 
       const modelName = provider === "openrouter" 
-        ? (model === "default" ? "openai/gpt-4o-mini" : model)
+        ? (model === "default" ? "qwen/qwen3-235b-a22b" : model)
         : (model === "default" ? "gpt-4o-mini" : model);
 
       try {
