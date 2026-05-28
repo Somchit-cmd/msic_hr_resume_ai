@@ -54,3 +54,26 @@ Stage Summary:
 - Serverless-compatible file handling (uses /tmp on Netlify)
 - Environment variables properly separated from code
 - Git repo has clean commit history ready for remote push
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix OpenRouter integration - 404 error due to wrong base URL
+
+Work Log:
+- Identified root cause: User entered wrong base URL `https://openrouter.ai/api/v1/models/openai/gpt-4/endpoints` instead of `https://openrouter.ai/api/v1/chat/completions`
+- Added dedicated `analyzeWithOpenRouter()` function with proper OpenRouter headers (HTTP-Referer, X-Title)
+- Implemented smart URL handling: auto-appends `/chat/completions` if missing from base URL
+- Set OpenRouter default base URL to `https://openrouter.ai/api/v1/chat/completions`
+- Set OpenRouter default model to `qwen/qwen3-235b-a22b` (free)
+- Show Base URL field for OpenRouter provider in settings UI (was only shown for custom)
+- Pre-fill correct OpenRouter URL in Base URL field
+- Fixed test connection endpoint with same smart URL handling and correct default model
+- Routes `openrouter` provider to dedicated function instead of generic OpenAI handler
+- Lint checks pass
+- Pushed to GitHub (commit 79beed9)
+
+Stage Summary:
+- OpenRouter now works as a first-class provider with correct defaults
+- Smart URL handling prevents 404 errors from wrong base URLs
+- Users see the Base URL field when selecting OpenRouter with correct default pre-filled
