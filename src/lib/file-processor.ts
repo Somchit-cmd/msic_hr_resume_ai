@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -45,10 +46,24 @@ export function sanitizeText(text: string): string {
 }
 
 /**
- * Saves uploaded file to the local filesystem
+ * Get the uploads directory (works on both local dev and serverless/Netlify)
+ * Uses /tmp on serverless environments, ./uploads locally
+ */
+function getUploadsDir(): string {
+  // On Netlify/serverless, use /tmp for temporary file storage
+  // On local dev, use ./uploads
+  const isServerless = process.env.NETLELY || process.env.AWS_LAMBDA_FUNCTION_NAME;
+  if (isServerless) {
+    return path.join(os.tmpdir(), 'resume-uploads');
+  }
+  return path.join(process.cwd(), 'uploads');
+}
+
+/**
+ * Saves uploaded file to a temporary location (works on both local and serverless)
  */
 export async function saveFile(file: File): Promise<string> {
-  const uploadsDir = path.join(process.cwd(), 'uploads');
+  const uploadsDir = getUploadsDir();
   
   // Ensure uploads directory exists
   if (!fs.existsSync(uploadsDir)) {
