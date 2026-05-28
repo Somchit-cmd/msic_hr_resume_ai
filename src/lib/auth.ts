@@ -13,20 +13,22 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.error("[Auth] Missing email or password");
           throw new Error("Email and password are required");
         }
 
         let user;
         try {
           user = await db.user.findUnique({
-            where: { email: credentials.email },
+            where: { email: credentials.email.toLowerCase().trim() },
           });
         } catch (dbError) {
-          console.error("Database connection error during login:", dbError);
+          console.error("[Auth] Database error:", dbError);
           throw new Error("Service temporarily unavailable. Please try again.");
         }
 
         if (!user) {
+          console.error("[Auth] User not found:", credentials.email);
           throw new Error("Invalid email or password");
         }
 
@@ -36,9 +38,11 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!isValidPassword) {
+          console.error("[Auth] Invalid password for:", credentials.email);
           throw new Error("Invalid email or password");
         }
 
+        console.log("[Auth] Login successful:", user.email);
         return {
           id: user.id,
           email: user.email,
@@ -50,7 +54,7 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: 24 * 60 * 60,
   },
   pages: {
     signIn: "/login",
@@ -72,4 +76,5 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
 };
