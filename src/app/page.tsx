@@ -971,31 +971,10 @@ export default function Dashboard() {
                         <SelectValue placeholder="Currency" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="LAK">LAK (₭)</SelectItem>
                         <SelectItem value="USD">USD ($)</SelectItem>
-                        <SelectItem value="EUR">EUR (&euro;)</SelectItem>
-                        <SelectItem value="GBP">GBP (&pound;)</SelectItem>
-                        <SelectItem value="THB">THB (&#3647;)</SelectItem>
-                        <SelectItem value="JPY">JPY (&yen;)</SelectItem>
-                        <SelectItem value="CNY">CNY (&yen;)</SelectItem>
-                        <SelectItem value="KRW">KRW (&#8361;)</SelectItem>
-                        <SelectItem value="SGD">SGD ($)</SelectItem>
-                        <SelectItem value="HKD">HKD ($)</SelectItem>
-                        <SelectItem value="AUD">AUD ($)</SelectItem>
-                        <SelectItem value="CAD">CAD ($)</SelectItem>
-                        <SelectItem value="INR">INR (&#8377;)</SelectItem>
-                        <SelectItem value="IDR">IDR (Rp)</SelectItem>
-                        <SelectItem value="MYR">MYR (RM)</SelectItem>
-                        <SelectItem value="PHP">PHP (&#8369;)</SelectItem>
-                        <SelectItem value="VND">VND (&#8363;)</SelectItem>
-                        <SelectItem value="BRL">BRL (R$)</SelectItem>
-                        <SelectItem value="MXN">MXN (MX$)</SelectItem>
-                        <SelectItem value="CHF">CHF (Fr)</SelectItem>
-                        <SelectItem value="SEK">SEK (kr)</SelectItem>
-                        <SelectItem value="NZD">NZD ($)</SelectItem>
-                        <SelectItem value="AED">AED (د.إ)</SelectItem>
-                        <SelectItem value="SAR">SAR (﷼)</SelectItem>
-                        <SelectItem value="ZAR">ZAR (R)</SelectItem>
-                        <SelectItem value="NGN">NGN (&#8358;)</SelectItem>
+                        <SelectItem value="THB">THB (฿)</SelectItem>
+                        <SelectItem value="CNY">CNY (¥)</SelectItem>
                       </SelectContent>
                     </Select>
                     <Input
