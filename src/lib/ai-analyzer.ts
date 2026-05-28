@@ -1,4 +1,3 @@
-import ZAI from 'z-ai-web-dev-sdk';
 import { db } from '@/lib/db';
 
 const SYSTEM_PROMPT = `You are an expert HR Recruitment Consultant. Analyze the provided resume text against the Job Description. Return ONLY a valid JSON object with these keys: 'candidate_info', 'candidate_overview', 'scoring' (1-10), 'assessment', 'professional_audit' (pros, cons, red_flags), and 'recommendation'. No markdown, no conversational text.
@@ -44,14 +43,59 @@ export interface AnalysisResult {
   recommendation: string;
 }
 
-// Z-AI singleton (free mode)
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+// Z-AI config - loaded from environment or .z-ai-config file
+interface ZAIConfig {
+  baseUrl: string;
+  apiKey: string;
+  chatId?: string;
+  userId?: string;
+  token?: string;
+}
 
-async function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
+let zaiConfig: ZAIConfig | null = null;
+
+async function getZAIConfig(): Promise<ZAIConfig> {
+  if (zaiConfig) return zaiConfig;
+
+  // Option 1: Environment variables
+  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
+    zaiConfig = {
+      baseUrl: process.env.ZAI_BASE_URL,
+      apiKey: process.env.ZAI_API_KEY,
+      chatId: process.env.ZAI_CHAT_ID,
+      userId: process.env.ZAI_USER_ID,
+      token: process.env.ZAI_TOKEN,
+    };
+    return zaiConfig;
   }
-  return zaiInstance;
+
+  // Option 2: Read .z-ai-config file
+  try {
+    const fsModule = await import('fs');
+    const pathModule = await import('path');
+    const osModule = await import('os');
+    const configPaths = [
+      pathModule.join(process.cwd(), '.z-ai-config'),
+      pathModule.join(osModule.homedir(), '.z-ai-config'),
+      '/etc/.z-ai-config',
+    ];
+    for (const filePath of configPaths) {
+      try {
+        const configStr = fsModule.readFileSync(filePath, 'utf-8');
+        const config = JSON.parse(configStr);
+        if (config.baseUrl && config.apiKey) {
+          zaiConfig = config;
+          return zaiConfig;
+        }
+      } catch {
+        // Continue to next path
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  throw new Error('Z-AI configuration not found. Set ZAI_BASE_URL and ZAI_API_KEY environment variables, or create .z-ai-config file.');
 }
 
 /**
@@ -68,10 +112,10 @@ async function getUserSettings(userId?: string) {
 }
 
 /**
- * Analyze using Z-AI SDK (default free mode)
+ * Analyze using Z-AI SDK (free mode) - directly calls the API
  */
 async function analyzeWithZAI(resumeText: string, jobDescription: string): Promise<AnalysisResult> {
-  const zai = await getZAI();
+  const config = await getZAIConfig();
 
   const userMessage = `## Job Description:
 ${jobDescription}
@@ -81,19 +125,39 @@ ${resumeText}
 
 Analyze this resume against the job description and provide your assessment as a valid JSON object.`;
 
-  const completion = await zai.chat.completions.create({
-    messages: [
-      { role: 'assistant', content: SYSTEM_PROMPT },
-      { role: 'user', content: userMessage },
-    ],
-    thinking: { type: 'disabled' },
+  const url = `${config.baseUrl}/chat/completions`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${config.apiKey}`,
+    'X-Z-AI-From': 'Z',
+  };
+  if (config.chatId) headers['X-Chat-Id'] = config.chatId;
+  if (config.userId) headers['X-User-Id'] = config.userId;
+  if (config.token) headers['X-Token'] = config.token;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userMessage },
+      ],
+      thinking: { type: 'disabled' },
+    }),
   });
 
-  const response = completion.choices[0]?.message?.content;
-  if (!response || response.trim().length === 0) {
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Z-AI API error (${response.status}): ${errorText.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content || content.trim().length === 0) {
     throw new Error('Empty response from Z-AI');
   }
-  return parseAIResponse(response);
+  return parseAIResponse(content);
 }
 
 /**
