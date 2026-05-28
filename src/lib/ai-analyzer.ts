@@ -85,7 +85,7 @@ async function getZAIConfig(): Promise<ZAIConfig> {
         const config = JSON.parse(configStr);
         if (config.baseUrl && config.apiKey) {
           zaiConfig = config;
-          return zaiConfig;
+          return config;
         }
       } catch {
         // Continue to next path
