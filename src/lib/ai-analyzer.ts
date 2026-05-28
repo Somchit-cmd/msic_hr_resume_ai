@@ -171,7 +171,7 @@ async function analyzeWithZAIKey(
   temperature: number,
   maxTokens: number
 ): Promise<AnalysisResult> {
-  const endpoint = baseUrl || 'https://api.z-ai.online/v1/chat/completions';
+  const endpoint = baseUrl || 'https://internal-api.z.ai/v1/chat/completions';
 
   const response = await fetch(endpoint, {
     method: 'POST',
