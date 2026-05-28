@@ -97,6 +97,7 @@ interface JDFormData {
   employmentType: string;
   experienceLevel: string;
   location: string;
+  salaryCurrency: string;
   salaryRange: string;
   requiredSkills: string[];
   preferredSkills: string[];
@@ -136,6 +137,7 @@ interface JDTemplateItem {
   employmentType: string;
   experienceLevel: string;
   location: string;
+  salaryCurrency: string;
   salaryRange: string;
   requiredSkills: string;
   preferredSkills: string;
@@ -153,6 +155,7 @@ const INITIAL_JD_FORM: JDFormData = {
   employmentType: "",
   experienceLevel: "",
   location: "",
+  salaryCurrency: "USD",
   salaryRange: "",
   requiredSkills: [],
   preferredSkills: [],
@@ -220,7 +223,7 @@ export default function Dashboard() {
     if (form.employmentType) parts.push(`Employment Type: ${form.employmentType}`);
     if (form.experienceLevel) parts.push(`Experience Level: ${form.experienceLevel}`);
     if (form.location) parts.push(`Location: ${form.location}`);
-    if (form.salaryRange) parts.push(`Salary Range: ${form.salaryRange}`);
+    if (form.salaryRange) parts.push(`Salary Range: ${form.salaryCurrency} ${form.salaryRange}`);
 
     if (form.requiredSkills.length > 0) {
       parts.push(`Required Skills: ${form.requiredSkills.join(", ")}`);
@@ -478,6 +481,7 @@ export default function Dashboard() {
       employmentType: template.employmentType,
       experienceLevel: template.experienceLevel,
       location: template.location,
+      salaryCurrency: template.salaryCurrency || "USD",
       salaryRange: template.salaryRange,
       requiredSkills: JSON.parse(template.requiredSkills || "[]"),
       preferredSkills: JSON.parse(template.preferredSkills || "[]"),
@@ -956,14 +960,53 @@ export default function Dashboard() {
                     <DollarSign className="h-3 w-3 inline mr-1" />
                     Salary Range
                   </Label>
-                  <Input
-                    placeholder="e.g. $120,000 - $160,000"
-                    value={jdForm.salaryRange}
-                    onChange={(e) =>
-                      setJdForm((prev) => ({ ...prev, salaryRange: e.target.value }))
-                    }
-                    className="text-sm"
-                  />
+                  <div className="flex gap-2">
+                    <Select
+                      value={jdForm.salaryCurrency}
+                      onValueChange={(value) =>
+                        setJdForm((prev) => ({ ...prev, salaryCurrency: value }))
+                      }
+                    >
+                      <SelectTrigger className="w-[100px] shrink-0 text-sm">
+                        <SelectValue placeholder="Currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="EUR">EUR (&euro;)</SelectItem>
+                        <SelectItem value="GBP">GBP (&pound;)</SelectItem>
+                        <SelectItem value="THB">THB (&#3647;)</SelectItem>
+                        <SelectItem value="JPY">JPY (&yen;)</SelectItem>
+                        <SelectItem value="CNY">CNY (&yen;)</SelectItem>
+                        <SelectItem value="KRW">KRW (&#8361;)</SelectItem>
+                        <SelectItem value="SGD">SGD ($)</SelectItem>
+                        <SelectItem value="HKD">HKD ($)</SelectItem>
+                        <SelectItem value="AUD">AUD ($)</SelectItem>
+                        <SelectItem value="CAD">CAD ($)</SelectItem>
+                        <SelectItem value="INR">INR (&#8377;)</SelectItem>
+                        <SelectItem value="IDR">IDR (Rp)</SelectItem>
+                        <SelectItem value="MYR">MYR (RM)</SelectItem>
+                        <SelectItem value="PHP">PHP (&#8369;)</SelectItem>
+                        <SelectItem value="VND">VND (&#8363;)</SelectItem>
+                        <SelectItem value="BRL">BRL (R$)</SelectItem>
+                        <SelectItem value="MXN">MXN (MX$)</SelectItem>
+                        <SelectItem value="CHF">CHF (Fr)</SelectItem>
+                        <SelectItem value="SEK">SEK (kr)</SelectItem>
+                        <SelectItem value="NZD">NZD ($)</SelectItem>
+                        <SelectItem value="AED">AED (د.إ)</SelectItem>
+                        <SelectItem value="SAR">SAR (﷼)</SelectItem>
+                        <SelectItem value="ZAR">ZAR (R)</SelectItem>
+                        <SelectItem value="NGN">NGN (&#8358;)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="e.g. 120,000 - 160,000"
+                      value={jdForm.salaryRange}
+                      onChange={(e) =>
+                        setJdForm((prev) => ({ ...prev, salaryRange: e.target.value }))
+                      }
+                      className="text-sm flex-1"
+                    />
+                  </div>
                 </div>
               </div>
 

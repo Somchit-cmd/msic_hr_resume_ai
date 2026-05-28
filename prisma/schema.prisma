@@ -44,6 +44,7 @@ model JDTemplate {
   experienceLevel String   @default("")
   location        String   @default("")
   salaryRange     String   @default("")
+  salaryCurrency  String   @default("USD") // Currency code for salary
   requiredSkills  String   @default("[]") // JSON array string
   preferredSkills String   @default("[]") // JSON array string
   education       String   @default("")

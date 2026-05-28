@@ -98,3 +98,30 @@ Stage Summary:
 - API keys masked in API responses for security
 - Connection test validates provider + API key + model configuration
 - Upload flow automatically uses user's configured AI provider
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Add currency selection field for salary in JD form
+
+Work Log:
+- Added `salaryCurrency` field (String, default "USD") to JDTemplate model in Prisma schema
+- Pushed schema to Neon PostgreSQL - sync successful
+- Updated JDFormData interface to include `salaryCurrency: string`
+- Updated JDTemplateItem interface to include `salaryCurrency: string`
+- Updated INITIAL_JD_FORM to include `salaryCurrency: "USD"`
+- Updated composeJobDescription to format salary as "Salary Range: {currency} {range}"
+- Updated handleLoadTemplate to restore salaryCurrency from template
+- Replaced simple salary range Input with a currency dropdown + salary input combo
+- Currency dropdown supports 25 currencies: USD, EUR, GBP, THB, JPY, CNY, KRW, SGD, HKD, AUD, CAD, INR, IDR, MYR, PHP, VND, BRL, MXN, CHF, SEK, NZD, AED, SAR, ZAR, NGN
+- Updated /api/templates POST to accept and store salaryCurrency
+- Updated /api/templates/[id] PUT to accept and update salaryCurrency
+- Updated salary input placeholder from "$120,000 - $160,000" to "120,000 - 160,000" (currency shown in dropdown)
+- Lint check passed with zero errors
+
+Stage Summary:
+- Currency selection field added to salary section in JD form
+- 25 currencies supported with code and symbol display
+- Currency selection is saved with templates and restored on load
+- Salary range composed with currency prefix in job description text
+- Full end-to-end implementation: Prisma schema, API endpoints, UI

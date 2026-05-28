@@ -71,6 +71,7 @@ export async function PUT(
         employmentType: body.employmentType ?? existing.employmentType,
         experienceLevel: body.experienceLevel ?? existing.experienceLevel,
         location: body.location ?? existing.location,
+        salaryCurrency: body.salaryCurrency ?? existing.salaryCurrency,
         salaryRange: body.salaryRange ?? existing.salaryRange,
         requiredSkills: body.requiredSkills
           ? JSON.stringify(body.requiredSkills)
