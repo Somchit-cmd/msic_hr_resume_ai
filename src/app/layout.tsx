@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MSIC ResumeScreen AI - Intelligent Resume Screening",
+  title: "MSIG Sokxay HR Resume Screen",
   description: "AI-powered resume screening tool for HR professionals. Upload resumes, compare against job descriptions, and get structured audit reports.",
   keywords: ["resume screening", "HR", "AI recruitment", "candidate analysis", "job matching"],
-  authors: [{ name: "MSIC ResumeScreen AI" }],
+  authors: [{ name: "MSIG Sokxay HR Resume Screen" }],
   icons: {
     icon: "https://i.imgur.com/MsQTtuV.png",
   },

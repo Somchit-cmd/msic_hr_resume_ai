@@ -826,14 +826,14 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <Image
                 src="https://i.imgur.com/6IUx9ox.png"
-                alt="MSIC ResumeScreen AI"
+                alt="MSIG Sokxay HR Resume Screen"
                 width={44}
                 height={44}
                 className="rounded-lg"
               />
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
-                  MSIC ResumeScreen AI
+                  MSIG Sokxay HR Resume Screen
                 </h1>
                 <p className="text-xs text-gray-500">
                   Intelligent Resume Screening for HR Professionals
@@ -1818,7 +1818,7 @@ export default function Dashboard() {
       <footer className="border-t border-gray-200 bg-white mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-xs text-gray-400 text-center">
-            MSIC ResumeScreen AI — Powered by AI-driven analysis. All data is
+            MSIG Sokxay HR Resume Screen — Powered by AI-driven analysis. All data is
             processed securely and stored locally.
           </p>
         </div>

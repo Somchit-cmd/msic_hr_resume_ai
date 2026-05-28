@@ -66,12 +66,12 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <Image
             src="https://i.imgur.com/6IUx9ox.png"
-            alt="MSIC ResumeScreen AI"
+            alt="MSIG Sokxay HR Resume Screen"
             width={56}
             height={56}
             className="rounded-xl mx-auto mb-4 shadow-lg shadow-emerald-200"
           />
-          <h1 className="text-2xl font-bold text-gray-900">MSIC ResumeScreen AI</h1>
+          <h1 className="text-2xl font-bold text-gray-900">MSIG Sokxay HR Resume Screen</h1>
           <p className="text-sm text-gray-500 mt-1">
             Sign in to access the screening dashboard
           </p>
@@ -183,7 +183,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-xs text-gray-400 text-center mt-6">
-          MSIC ResumeScreen AI — Secure HR Screening Platform
+          MSIG Sokxay HR Resume Screen — Secure HR Screening Platform
         </p>
       </div>
     </div>
