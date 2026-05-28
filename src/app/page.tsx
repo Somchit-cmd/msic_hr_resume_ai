@@ -72,6 +72,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useSession, signOut } from "next-auth/react";
+import { AuthGuard } from "@/components/auth-guard";
 
 // Types
 interface JDFormData {
@@ -126,6 +128,7 @@ const INITIAL_JD_FORM: JDFormData = {
 };
 
 export default function Dashboard() {
+  const { data: session } = useSession();
   const [jdForm, setJdForm] = useState<JDFormData>(INITIAL_JD_FORM);
   const [skillInput, setSkillInput] = useState("");
   const [prefSkillInput, setPrefSkillInput] = useState("");
@@ -454,6 +457,7 @@ export default function Dashboard() {
   };
 
   return (
+    <AuthGuard>
     <div className="min-h-screen flex flex-col bg-gray-50/50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
@@ -472,15 +476,33 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchCandidates()}
-              className="gap-2"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-3">
+              {session?.user && (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600">
+                  <div className="h-7 w-7 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <User className="h-3.5 w-3.5 text-emerald-700" />
+                  </div>
+                  <span className="text-xs">{(session.user as { name?: string }).name || session.user.email}</span>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchCandidates()}
+                className="gap-2"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Refresh
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="gap-2 text-gray-500 hover:text-red-600"
+              >
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -1343,5 +1365,6 @@ export default function Dashboard() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </AuthGuard>
   );
 }

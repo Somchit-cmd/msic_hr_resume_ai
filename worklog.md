@@ -44,3 +44,33 @@ Stage Summary:
 - JD input is now a professional HR form instead of a plain textarea
 - Form composes structured data into a formatted string for AI processing
 - All lint checks pass, dev server running without errors
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Add login screen and connect to Neon PostgreSQL
+
+Work Log:
+- Switched Prisma from SQLite to PostgreSQL (Neon)
+- Connected to Neon database: postgresql://neondb_owner:...@ep-morning-tooth-aon35kuf-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb
+- Added User model to Prisma schema with email, name, password, role fields
+- Updated db.ts to fallback to Neon URL when system DATABASE_URL points to old SQLite
+- Ran db:push to sync schema to Neon PostgreSQL
+- Seeded database with default admin user (admin@resumescreen.ai / admin123)
+- Set up NextAuth.js with credentials provider using bcryptjs for password verification
+- Created auth configuration at src/lib/auth.ts
+- Created API route at src/app/api/auth/[...nextauth]/route.ts
+- Created AuthProvider component wrapping SessionProvider
+- Created AuthGuard component that redirects unauthenticated users to /login
+- Created professional login page at src/app/(auth)/login/page.tsx
+- Login page features: email/password fields, show/hide password toggle, error display, demo credentials box
+- Added user session display and Sign Out button to dashboard header
+- Wrapped dashboard return with AuthGuard for route protection
+- All lint checks pass
+
+Stage Summary:
+- Login screen fully functional at /login with professional UI
+- Neon PostgreSQL database connected and working
+- Default credentials: admin@resumescreen.ai / admin123
+- Auth flow: unauthenticated → /login → sign in → redirect to dashboard
+- Dashboard shows user name and sign out button in header
