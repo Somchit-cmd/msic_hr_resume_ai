@@ -5,8 +5,10 @@ export async function GET() {
   const checks: Record<string, string> = {};
 
   // Check environment variables
-  checks.NEON_DATABASE_URL = process.env.NEON_DATABASE_URL ? '✅ Set' : '❌ Missing';
-  checks.DATABASE_URL = process.env.DATABASE_URL ? '✅ Set' : '❌ Missing';
+  const dbUrl = process.env.DATABASE_URL || '❌ Missing';
+  checks.DATABASE_URL = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')
+    ? `✅ Set (${dbUrl.substring(0, 30)}...)` 
+    : `❌ Invalid: ${dbUrl.substring(0, 20)}`;
   checks.NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET ? '✅ Set' : '❌ Missing';
   checks.NEXTAUTH_URL = process.env.NEXTAUTH_URL || '❌ Missing';
   checks.NODE_ENV = process.env.NODE_ENV || 'undefined';
@@ -20,7 +22,7 @@ export async function GET() {
     const admin = await db.user.findUnique({
       where: { email: 'admin@resumescreen.ai' },
     });
-    checks.AdminUser = admin ? `✅ Exists (id: ${admin.id})` : '❌ Not found - run seed script';
+    checks.AdminUser = admin ? `✅ Exists` : '❌ Not found - run seed script';
   } catch (error) {
     checks.Database = `❌ Error: ${(error as Error).message}`;
   }
