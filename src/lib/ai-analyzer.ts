@@ -1,10 +1,16 @@
 import ZAI from 'z-ai-web-dev-sdk';
 import { db } from '@/lib/db';
 
-const SYSTEM_PROMPT = `You are an expert HR Recruitment Consultant. Analyze the provided resume text against the Job Description. Return ONLY a valid JSON object with these keys: 'candidate_overview', 'scoring' (1-10), 'assessment', 'professional_audit' (pros, cons, red_flags), and 'recommendation'. No markdown, no conversational text.
+const SYSTEM_PROMPT = `You are an expert HR Recruitment Consultant. Analyze the provided resume text against the Job Description. Return ONLY a valid JSON object with these keys: 'candidate_info', 'candidate_overview', 'scoring' (1-10), 'assessment', 'professional_audit' (pros, cons, red_flags), and 'recommendation'. No markdown, no conversational text.
 
 The JSON structure must be exactly:
 {
+  "candidate_info": {
+    "first_name": "Candidate's first name extracted from resume, or empty string if not found",
+    "last_name": "Candidate's last name extracted from resume, or empty string if not found",
+    "email": "Candidate's email address extracted from resume, or empty string if not found",
+    "phone": "Candidate's phone number extracted from resume, or empty string if not found"
+  },
   "candidate_overview": "A brief summary of the candidate's background, experience, and key qualifications",
   "scoring": <number 1-10>,
   "assessment": "A detailed assessment of how well the candidate matches the job requirements",
@@ -16,9 +22,17 @@ The JSON structure must be exactly:
   "recommendation": "Strong Hire | Hire | Lean Hire | No Hire | Strong No Hire"
 }
 
-Be thorough, objective, and professional in your analysis. Consider skills match, experience relevance, education, and any gaps or concerns.`;
+Be thorough, objective, and professional in your analysis. Consider skills match, experience relevance, education, and any gaps or concerns. Always try to extract the candidate's name, email, and phone from the resume header/contact section.`;
+
+export interface CandidateInfo {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+}
 
 export interface AnalysisResult {
+  candidate_info: CandidateInfo;
   candidate_overview: string;
   scoring: number;
   assessment: string;
@@ -278,6 +292,17 @@ function parseAIResponse(response: string): AnalysisResult {
   jsonStr = jsonStr.trim();
 
   const result: AnalysisResult = JSON.parse(jsonStr);
+
+  // Validate and default candidate_info
+  if (!result.candidate_info) {
+    result.candidate_info = { first_name: '', last_name: '', email: '', phone: '' };
+  }
+  result.candidate_info = {
+    first_name: result.candidate_info.first_name || '',
+    last_name: result.candidate_info.last_name || '',
+    email: result.candidate_info.email || '',
+    phone: result.candidate_info.phone || '',
+  };
 
   // Validate the structure
   if (!result.candidate_overview || typeof result.scoring !== 'number' ||

@@ -41,6 +41,11 @@ import {
   Zap,
   CheckCircle,
   Globe,
+  Search,
+  Users,
+  Mail,
+  Phone as PhoneIcon,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +114,12 @@ interface JDFormData {
 interface CandidateListItem {
   id: string;
   fileName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  department: string;
+  jobTitle: string;
   scoring: number;
   recommendation: string;
   candidateOverview: string;
@@ -214,6 +225,16 @@ export default function Dashboard() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"screen" | "directory">("screen");
+
+  // Candidate Directory search
+  const [candidateSearch, setCandidateSearch] = useState("");
+  const [searchFirstName, setSearchFirstName] = useState("");
+  const [searchLastName, setSearchLastName] = useState("");
+  const [searchDepartment, setSearchDepartment] = useState("");
+  const [searchJobTitle, setSearchJobTitle] = useState("");
+
   // Compose JD from form data
   const composeJobDescription = (form: JDFormData): string => {
     const parts: string[] = [];
@@ -281,9 +302,21 @@ export default function Dashboard() {
   };
 
   // Fetch candidates on mount
-  const fetchCandidates = useCallback(async () => {
+  const fetchCandidates = useCallback(async (searchParams?: { firstName?: string; lastName?: string; department?: string; jobTitle?: string; search?: string }) => {
     try {
-      const res = await fetch("/api/candidates");
+      const params = new URLSearchParams();
+      const fn = searchParams?.firstName || searchFirstName;
+      const ln = searchParams?.lastName || searchLastName;
+      const dept = searchParams?.department || searchDepartment;
+      const jt = searchParams?.jobTitle || searchJobTitle;
+      const s = searchParams?.search || candidateSearch;
+      if (fn) params.set("firstName", fn);
+      if (ln) params.set("lastName", ln);
+      if (dept) params.set("department", dept);
+      if (jt) params.set("jobTitle", jt);
+      if (s) params.set("search", s);
+      const qs = params.toString();
+      const res = await fetch(`/api/candidates${qs ? `?${qs}` : ""}`);
       const data = await res.json();
       if (data.candidates) {
         setCandidates(data.candidates);
@@ -297,7 +330,7 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, searchFirstName, searchLastName, searchDepartment, searchJobTitle, candidateSearch]);
 
   // Fetch templates
   const fetchTemplates = useCallback(async () => {
@@ -612,6 +645,8 @@ export default function Dashboard() {
       const formData = new FormData();
       formData.append("resume", file);
       formData.append("jobDescription", composedJD);
+      formData.append("department", jdForm.department);
+      formData.append("jobTitle", jdForm.jobTitle);
 
       try {
         const res = await fetch("/api/upload", {
@@ -722,6 +757,21 @@ export default function Dashboard() {
     );
   });
 
+  // Candidate directory search handler
+  const handleCandidateSearch = () => {
+    setIsLoading(true);
+    fetchCandidates();
+  };
+
+  const clearCandidateSearch = () => {
+    setCandidateSearch("");
+    setSearchFirstName("");
+    setSearchLastName("");
+    setSearchDepartment("");
+    setSearchJobTitle("");
+    fetchCandidates({ firstName: "", lastName: "", department: "", jobTitle: "", search: "" });
+  };
+
   // Score color
   const getScoreColor = (score: number) => {
     if (score >= 8) return "text-emerald-600";
@@ -825,6 +875,42 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-1 mb-6 bg-white rounded-lg border border-gray-200 p-1 w-fit">
+          <button
+            onClick={() => setActiveTab("screen")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === "screen"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <Shield className="h-4 w-4" />
+            Screen Resume
+          </button>
+          <button
+            onClick={() => { setActiveTab("directory"); fetchCandidates(); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === "directory"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Candidate Directory
+            {candidates.length > 0 && (
+              <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === "directory" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
+              }`}>
+                {candidates.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Screen Resume Tab */}
+        {activeTab === "screen" && (
+        <>
         {/* Upload Section */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
           {/* Job Description Form */}
@@ -1494,6 +1580,221 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+        </>
+        )}
+
+        {/* Candidate Directory Tab */}
+        {activeTab === "directory" && (
+        <div className="space-y-6">
+          {/* Search Filters */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Filter className="h-4 w-4 text-emerald-600" />
+                Search Candidates
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* General search */}
+              <div className="flex gap-2 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by name, department, job title, email..."
+                    value={candidateSearch}
+                    onChange={(e) => setCandidateSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCandidateSearch(); }}
+                    className="pl-10 text-sm"
+                  />
+                </div>
+                <Button onClick={handleCandidateSearch} size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Search className="h-3.5 w-3.5" />
+                  Search
+                </Button>
+                <Button onClick={clearCandidateSearch} variant="outline" size="sm" className="gap-1.5">
+                  Clear
+                </Button>
+              </div>
+              {/* Advanced filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">First Name</Label>
+                  <Input
+                    placeholder="Search first name..."
+                    value={searchFirstName}
+                    onChange={(e) => setSearchFirstName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCandidateSearch(); }}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Last Name</Label>
+                  <Input
+                    placeholder="Search last name..."
+                    value={searchLastName}
+                    onChange={(e) => setSearchLastName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCandidateSearch(); }}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Department</Label>
+                  <Input
+                    placeholder="Search department..."
+                    value={searchDepartment}
+                    onChange={(e) => setSearchDepartment(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCandidateSearch(); }}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Job Title</Label>
+                  <Input
+                    placeholder="Search job title..."
+                    value={searchJobTitle}
+                    onChange={(e) => setSearchJobTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCandidateSearch(); }}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Candidate Directory Table */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Users className="h-4 w-4 text-emerald-600" />
+                All Candidates
+                {candidates.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">{candidates.length}</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  <span className="ml-2 text-gray-500">Loading candidates...</span>
+                </div>
+              ) : candidates.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500 font-medium">No candidates found</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {candidateSearch || searchFirstName || searchLastName || searchDepartment || searchJobTitle
+                      ? "Try adjusting your search criteria"
+                      : "Screen resumes to start building your candidate directory"}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Candidate</TableHead>
+                        <TableHead>Job Title</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => handleSort("scoring")}>
+                          <span className="flex items-center gap-1">
+                            Score
+                            {sortField === "scoring" ? (
+                              sortDir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <Star className="h-3.5 w-3.5 text-gray-300" />
+                            )}
+                          </span>
+                        </TableHead>
+                        <TableHead>Recommendation</TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => handleSort("createdAt")}>
+                          <span className="flex items-center gap-1">
+                            Screened Date
+                            {sortField === "createdAt" ? (
+                              sortDir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <TrendingUp className="h-3.5 w-3.5 text-gray-300" />
+                            )}
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedCandidates.map((candidate) => (
+                        <TableRow key={candidate.id} className="group">
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center shrink-0">
+                                <User className="h-4 w-4 text-emerald-700" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm text-gray-900">
+                                  {candidate.firstName || candidate.lastName
+                                    ? `${candidate.firstName} ${candidate.lastName}`.trim()
+                                    : candidate.fileName}
+                                </p>
+                                <p className="text-xs text-gray-400">{candidate.fileName}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-gray-700">{candidate.jobTitle || "—"}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-gray-700">{candidate.department || "—"}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              {candidate.email && (
+                                <p className="text-xs text-gray-600 flex items-center gap-1">
+                                  <Mail className="h-3 w-3" />{candidate.email}
+                                </p>
+                              )}
+                              {candidate.phone && (
+                                <p className="text-xs text-gray-600 flex items-center gap-1">
+                                  <PhoneIcon className="h-3 w-3" />{candidate.phone}
+                                </p>
+                              )}
+                              {!candidate.email && !candidate.phone && (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className={`inline-flex items-center justify-center h-9 w-9 rounded-lg border font-bold text-sm ${getScoreBg(candidate.scoring)} ${getScoreColor(candidate.scoring)}`}>
+                              {candidate.scoring}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getRecommendationVariant(candidate.recommendation)}>
+                              {candidate.recommendation}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-500">
+                            {new Date(candidate.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => handleViewCandidate(candidate.id)}>
+                                <Eye className="h-3.5 w-3.5 mr-1" />View
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-8 px-2 text-red-500 hover:text-red-700" onClick={() => setDeleteId(candidate.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        )}
       </main>
 
       {/* Footer */}
@@ -1527,8 +1828,35 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900">
-                      {selectedCandidate.fileName}
+                      {selectedCandidate.firstName || selectedCandidate.lastName
+                        ? `${selectedCandidate.firstName} ${selectedCandidate.lastName}`.trim()
+                        : selectedCandidate.fileName}
                     </h3>
+                    {(selectedCandidate.firstName || selectedCandidate.lastName) && (
+                      <p className="text-sm text-gray-400">{selectedCandidate.fileName}</p>
+                    )}
+                    <div className="flex flex-wrap gap-3 mt-2">
+                      {selectedCandidate.jobTitle && (
+                        <span className="text-xs text-gray-600 flex items-center gap-1">
+                          <Briefcase className="h-3 w-3" />{selectedCandidate.jobTitle}
+                        </span>
+                      )}
+                      {selectedCandidate.department && (
+                        <span className="text-xs text-gray-600 flex items-center gap-1">
+                          <Building2 className="h-3 w-3" />{selectedCandidate.department}
+                        </span>
+                      )}
+                      {selectedCandidate.email && (
+                        <span className="text-xs text-gray-600 flex items-center gap-1">
+                          <Mail className="h-3 w-3" />{selectedCandidate.email}
+                        </span>
+                      )}
+                      {selectedCandidate.phone && (
+                        <span className="text-xs text-gray-600 flex items-center gap-1">
+                          <PhoneIcon className="h-3 w-3" />{selectedCandidate.phone}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-500 mt-1">
                       Screened on{" "}
                       {new Date(

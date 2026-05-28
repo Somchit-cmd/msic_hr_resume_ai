@@ -23,6 +23,12 @@ model Candidate {
   id                String   @id @default(cuid())
   fileName          String
   filePath          String
+  firstName         String   @default("")
+  lastName          String   @default("")
+  email             String   @default("")
+  phone             String   @default("")
+  department        String   @default("")   // From the JD used during screening
+  jobTitle          String   @default("")   // From the JD used during screening
   jobDescription    String
   candidateOverview String
   scoring           Int

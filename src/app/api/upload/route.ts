@@ -10,6 +10,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('resume') as File | null;
     const jobDescription = formData.get('jobDescription') as string | null;
+    const jdDepartment = formData.get('department') as string | null;
+    const jdJobTitle = formData.get('jobTitle') as string | null;
 
     // Validate job description
     if (!jobDescription || jobDescription.trim().length === 0) {
@@ -74,6 +76,12 @@ export async function POST(request: NextRequest) {
         data: {
           fileName: file.name,
           filePath,
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          department: jdDepartment || '',
+          jobTitle: jdJobTitle || '',
           jobDescription: sanitizedJD,
           candidateOverview: 'Analysis failed',
           scoring: 0,
@@ -95,6 +103,12 @@ export async function POST(request: NextRequest) {
       data: {
         fileName: file.name,
         filePath,
+        firstName: analysis.candidate_info?.first_name || '',
+        lastName: analysis.candidate_info?.last_name || '',
+        email: analysis.candidate_info?.email || '',
+        phone: analysis.candidate_info?.phone || '',
+        department: jdDepartment || '',
+        jobTitle: jdJobTitle || '',
         jobDescription: sanitizedJD,
         candidateOverview: analysis.candidate_overview,
         scoring: analysis.scoring,
