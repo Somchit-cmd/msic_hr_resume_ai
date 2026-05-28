@@ -16,9 +16,15 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email and password are required");
         }
 
-        const user = await db.user.findUnique({
-          where: { email: credentials.email },
-        });
+        let user;
+        try {
+          user = await db.user.findUnique({
+            where: { email: credentials.email },
+          });
+        } catch (dbError) {
+          console.error("Database connection error during login:", dbError);
+          throw new Error("Service temporarily unavailable. Please try again.");
+        }
 
         if (!user) {
           throw new Error("Invalid email or password");
