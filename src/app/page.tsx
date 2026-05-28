@@ -35,6 +35,12 @@ import {
   FolderOpen,
   Copy,
   Pencil,
+  Settings,
+  Cpu,
+  Key,
+  Zap,
+  CheckCircle,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +74,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -187,6 +195,22 @@ export default function Dashboard() {
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [editTemplateName, setEditTemplateName] = useState("");
 
+  // AI Settings state
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [aiSettings, setAiSettings] = useState({
+    provider: "z-ai",
+    model: "default",
+    apiKey: "",
+    baseUrl: "",
+    temperature: 0.7,
+    maxTokens: 4096,
+    hasApiKey: false,
+  });
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
+
   // Compose JD from form data
   const composeJobDescription = (form: JDFormData): string => {
     const parts: string[] = [];
@@ -292,10 +316,127 @@ export default function Dashboard() {
     }
   }, [toast]);
 
+  // Fetch AI settings
+  const fetchAISettings = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai-settings");
+      const data = await res.json();
+      if (data.settings) {
+        setAiSettings({
+          provider: data.settings.provider || "z-ai",
+          model: data.settings.model || "default",
+          apiKey: data.settings.apiKey || "",
+          baseUrl: data.settings.baseUrl || "",
+          temperature: data.settings.temperature ?? 0.7,
+          maxTokens: data.settings.maxTokens ?? 4096,
+          hasApiKey: data.settings.hasApiKey || false,
+        });
+      }
+    } catch {
+      /* use defaults */
+    }
+  }, []);
+
   useEffect(() => {
     fetchCandidates();
     fetchTemplates();
-  }, [fetchCandidates, fetchTemplates]);
+    fetchAISettings();
+  }, [fetchCandidates, fetchTemplates, fetchAISettings]);
+
+  // Save AI settings
+  const handleSaveAISettings = async () => {
+    setIsSavingSettings(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/ai-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(aiSettings),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Settings Saved", description: "AI model settings updated successfully." });
+        if (data.settings) {
+          setAiSettings({
+            provider: data.settings.provider || "z-ai",
+            model: data.settings.model || "default",
+            apiKey: data.settings.apiKey || "",
+            baseUrl: data.settings.baseUrl || "",
+            temperature: data.settings.temperature ?? 0.7,
+            maxTokens: data.settings.maxTokens ?? 4096,
+            hasApiKey: data.settings.hasApiKey || false,
+          });
+        }
+      } else {
+        toast({ title: "Error", description: data.error || "Failed to save settings", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // Test AI connection
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/ai-settings", { method: "POST" });
+      const data = await res.json();
+      setTestResult({ success: data.success, message: data.message });
+      if (data.success) {
+        toast({ title: "Connection Successful", description: data.message });
+      } else {
+        toast({ title: "Connection Failed", description: data.message, variant: "destructive" });
+      }
+    } catch {
+      setTestResult({ success: false, message: "Network error occurred" });
+      toast({ title: "Error", description: "Failed to test connection", variant: "destructive" });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  // Provider model options
+  const getModelOptions = (provider: string): { value: string; label: string }[] => {
+    switch (provider) {
+      case "openai":
+        return [
+          { value: "gpt-4o", label: "GPT-4o" },
+          { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+          { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+          { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+        ];
+      case "anthropic":
+        return [
+          { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
+          { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+          { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" },
+          { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
+        ];
+      case "google":
+        return [
+          { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+          { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+          { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+          { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+        ];
+      case "z-ai":
+        return [
+          { value: "default", label: "Z-AI Default" },
+        ];
+      case "custom":
+        return [
+          { value: "default", label: "Custom Model (enter name)" },
+        ];
+      default:
+        return [{ value: "default", label: "Default" }];
+    }
+  };
+
+  const needsApiKey = aiSettings.provider !== "z-ai";
+  const needsBaseUrl = aiSettings.provider === "custom";
 
   // Save current JD form as template
   const handleSaveTemplate = async () => {
@@ -636,6 +777,20 @@ export default function Dashboard() {
                   <span className="text-xs">{(session.user as { name?: string }).name || session.user.email}</span>
                 </div>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setIsSettingsOpen(true); setTestResult(null); fetchAISettings(); }}
+                className="gap-2"
+              >
+                <Cpu className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">AI Model</span>
+                {aiSettings.provider !== "z-ai" && (
+                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700">
+                    {aiSettings.provider}
+                  </Badge>
+                )}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -1736,6 +1891,262 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* AI Settings Dialog */}
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-emerald-600" />
+              AI Model Settings
+            </DialogTitle>
+            <DialogDescription>
+              Configure the AI model used for resume screening analysis.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[70vh]">
+            <div className="space-y-5 py-2 pr-2">
+              {/* Current Status */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
+                <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${aiSettings.provider === "z-ai" ? "bg-emerald-100" : "bg-amber-100"}`}>
+                  <Zap className={`h-4 w-4 ${aiSettings.provider === "z-ai" ? "text-emerald-600" : "text-amber-600"}`} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Active: {aiSettings.provider === "z-ai" ? "Z-AI (Built-in)" : aiSettings.provider.charAt(0).toUpperCase() + aiSettings.provider.slice(1)}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {aiSettings.provider === "z-ai"
+                      ? "Free built-in AI — no configuration needed"
+                      : aiSettings.hasApiKey || aiSettings.apiKey
+                        ? `Model: ${aiSettings.model === "default" ? "Default" : aiSettings.model}`
+                        : "⚠️ API key required"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Provider Selection */}
+              <div className="space-y-1.5">
+                <Label className="text-sm text-gray-700 flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5" />
+                  AI Provider
+                </Label>
+                <Select
+                  value={aiSettings.provider}
+                  onValueChange={(value) => {
+                    setAiSettings((prev) => ({
+                      ...prev,
+                      provider: value,
+                      model: "default",
+                      apiKey: "",
+                      baseUrl: "",
+                      hasApiKey: false,
+                    }));
+                    setTestResult(null);
+                  }}
+                >
+                  <SelectTrigger className="w-full text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="z-ai">Z-AI (Built-in — Free)</SelectItem>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                    <SelectItem value="google">Google AI (Gemini)</SelectItem>
+                    <SelectItem value="custom">Custom (OpenAI-compatible)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Model Selection */}
+              {aiSettings.provider !== "z-ai" && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-gray-700 flex items-center gap-1.5">
+                    <Cpu className="h-3.5 w-3.5" />
+                    Model
+                  </Label>
+                  {aiSettings.provider === "custom" ? (
+                    <Input
+                      placeholder="e.g. my-model-v1"
+                      value={aiSettings.model === "default" ? "" : aiSettings.model}
+                      onChange={(e) =>
+                        setAiSettings((prev) => ({ ...prev, model: e.target.value || "default" }))
+                      }
+                      className="text-sm"
+                    />
+                  ) : (
+                    <Select
+                      value={aiSettings.model}
+                      onValueChange={(value) =>
+                        setAiSettings((prev) => ({ ...prev, model: value }))
+                      }
+                    >
+                      <SelectTrigger className="w-full text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getModelOptions(aiSettings.provider).map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
+              {/* API Key */}
+              {needsApiKey && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-gray-700 flex items-center gap-1.5">
+                    <Key className="h-3.5 w-3.5" />
+                    API Key
+                  </Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type={showApiKey ? "text" : "password"}
+                        placeholder={aiSettings.hasApiKey ? "Enter new key to replace, or leave as-is" : `Enter your ${aiSettings.provider} API key`}
+                        value={aiSettings.apiKey}
+                        onChange={(e) =>
+                          setAiSettings((prev) => ({ ...prev, apiKey: e.target.value }))
+                        }
+                        className="text-sm pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showApiKey ? <XCircle className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  {aiSettings.hasApiKey && (
+                    <p className="text-xs text-emerald-600 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      API key on file — enter a new one to replace
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400">
+                    Your API key is stored securely and only used server-side.
+                  </p>
+                </div>
+              )}
+
+              {/* Base URL (for custom provider) */}
+              {needsBaseUrl && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-gray-700 flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    Base URL
+                  </Label>
+                  <Input
+                    placeholder="e.g. https://api.your-llm.com/v1/chat/completions"
+                    value={aiSettings.baseUrl}
+                    onChange={(e) =>
+                      setAiSettings((prev) => ({ ...prev, baseUrl: e.target.value }))
+                    }
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-gray-400">
+                    Must be an OpenAI-compatible chat completions endpoint.
+                  </p>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* Advanced Settings */}
+              <div className="space-y-4">
+                <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                  <Settings className="h-3.5 w-3.5" />
+                  Advanced
+                </p>
+
+                {/* Temperature */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-gray-600">Temperature</Label>
+                    <span className="text-xs font-mono text-gray-500">{aiSettings.temperature.toFixed(1)}</span>
+                  </div>
+                  <Slider
+                    value={[aiSettings.temperature]}
+                    onValueChange={([value]) =>
+                      setAiSettings((prev) => ({ ...prev, temperature: value }))
+                    }
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>Precise (0)</span>
+                    <span>Creative (2)</span>
+                  </div>
+                </div>
+
+                {/* Max Tokens */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-600">Max Tokens</Label>
+                  <Input
+                    type="number"
+                    min={256}
+                    max={128000}
+                    value={aiSettings.maxTokens}
+                    onChange={(e) =>
+                      setAiSettings((prev) => ({
+                        ...prev,
+                        maxTokens: parseInt(e.target.value) || 4096,
+                      }))
+                    }
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-gray-400">
+                    Maximum response length (256–128,000). Higher = more detailed analysis.
+                  </p>
+                </div>
+              </div>
+
+              {/* Test Result */}
+              {testResult && (
+                <div className={`p-3 rounded-lg border ${testResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+                  <p className={`text-sm flex items-center gap-1.5 ${testResult.success ? "text-emerald-700" : "text-red-700"}`}>
+                    {testResult.success ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                    {testResult.message}
+                  </p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={isTestingConnection || (needsApiKey && !aiSettings.hasApiKey && !aiSettings.apiKey)}
+              className="gap-1.5 text-sm"
+            >
+              {isTestingConnection ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Testing...</>
+              ) : (
+                <><Zap className="h-3.5 w-3.5" />Test Connection</>
+              )}
+            </Button>
+            <Button
+              onClick={handleSaveAISettings}
+              disabled={isSavingSettings || (needsApiKey && !aiSettings.apiKey && !aiSettings.hasApiKey)}
+              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm gap-1.5"
+            >
+              {isSavingSettings ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving...</>
+              ) : (
+                <><CheckCircle className="h-3.5 w-3.5" />Save Settings</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
     </AuthGuard>
   );

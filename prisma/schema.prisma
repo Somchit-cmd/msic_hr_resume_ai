@@ -8,14 +8,15 @@ datasource db {
 }
 
 model User {
-  id        String      @id @default(cuid())
-  email     String      @unique
-  name      String
-  password  String
-  role      String      @default("hr")
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  templates JDTemplate[]
+  id         String      @id @default(cuid())
+  email      String      @unique
+  name       String
+  password   String
+  role       String      @default("hr")
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  templates  JDTemplate[]
+  aiSettings AISettings?
 }
 
 model Candidate {
@@ -54,4 +55,19 @@ model JDTemplate {
   updatedAt       DateTime @updatedAt
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model AISettings {
+  id          String   @id @default(cuid())
+  provider    String   @default("z-ai")     // z-ai, openai, anthropic, google, custom
+  model       String   @default("default")  // model name/identifier
+  apiKey      String?  // API key for external providers (stored encrypted-like, but plain for now)
+  baseUrl     String?  // custom base URL for OpenAI-compatible endpoints
+  temperature Float    @default(0.7)
+  maxTokens   Int      @default(4096)
+  userId      String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

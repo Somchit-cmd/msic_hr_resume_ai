@@ -1,4 +1,5 @@
 import ZAI from 'z-ai-web-dev-sdk';
+import { db } from '@/lib/db';
 
 const SYSTEM_PROMPT = `You are an expert HR Recruitment Consultant. Analyze the provided resume text against the Job Description. Return ONLY a valid JSON object with these keys: 'candidate_overview', 'scoring' (1-10), 'assessment', 'professional_audit' (pros, cons, red_flags), and 'recommendation'. No markdown, no conversational text.
 
@@ -17,15 +18,6 @@ The JSON structure must be exactly:
 
 Be thorough, objective, and professional in your analysis. Consider skills match, experience relevance, education, and any gaps or concerns.`;
 
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-
-async function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
-}
-
 export interface AnalysisResult {
   candidate_overview: string;
   scoring: number;
@@ -38,13 +30,33 @@ export interface AnalysisResult {
   recommendation: string;
 }
 
+// Z-AI singleton
+let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+
+async function getZAI() {
+  if (!zaiInstance) {
+    zaiInstance = await ZAI.create();
+  }
+  return zaiInstance;
+}
+
 /**
- * Analyzes a resume against a job description using AI
+ * Get AI settings for a user, or return defaults
  */
-export async function analyzeResume(
-  resumeText: string,
-  jobDescription: string
-): Promise<AnalysisResult> {
+async function getUserSettings(userId?: string) {
+  if (!userId) return null;
+  try {
+    const settings = await db.aISettings.findUnique({ where: { userId } });
+    return settings;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Analyze using Z-AI SDK (default)
+ */
+async function analyzeWithZAI(resumeText: string, jobDescription: string): Promise<AnalysisResult> {
   const zai = await getZAI();
 
   const userMessage = `## Job Description:
@@ -55,78 +67,249 @@ ${resumeText}
 
 Analyze this resume against the job description and provide your assessment as a valid JSON object.`;
 
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: 'assistant', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMessage },
+    ],
+    thinking: { type: 'disabled' },
+  });
+
+  const response = completion.choices[0]?.message?.content;
+  if (!response || response.trim().length === 0) {
+    throw new Error('Empty response from Z-AI');
+  }
+  return parseAIResponse(response);
+}
+
+/**
+ * Analyze using OpenAI-compatible API
+ */
+async function analyzeWithOpenAI(
+  resumeText: string,
+  jobDescription: string,
+  apiKey: string,
+  baseUrl: string | null,
+  model: string,
+  temperature: number,
+  maxTokens: number
+): Promise<AnalysisResult> {
+  const endpoint = baseUrl || 'https://api.openai.com/v1/chat/completions';
+  const modelName = model === 'default' ? 'gpt-4o-mini' : model;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: modelName,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `## Job Description:\n${jobDescription}\n\n## Candidate Resume:\n${resumeText}\n\nAnalyze this resume against the job description and provide your assessment as a valid JSON object.` },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API error (${response.status}): ${errorText.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content || content.trim().length === 0) {
+    throw new Error('Empty response from OpenAI');
+  }
+  return parseAIResponse(content);
+}
+
+/**
+ * Analyze using Anthropic API
+ */
+async function analyzeWithAnthropic(
+  resumeText: string,
+  jobDescription: string,
+  apiKey: string,
+  baseUrl: string | null,
+  model: string,
+  temperature: number,
+  maxTokens: number
+): Promise<AnalysisResult> {
+  const endpoint = baseUrl || 'https://api.anthropic.com/v1/messages';
+  const modelName = model === 'default' ? 'claude-sonnet-4-20250514' : model;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: modelName,
+      max_tokens: maxTokens,
+      temperature,
+      system: SYSTEM_PROMPT,
+      messages: [
+        { role: 'user', content: `## Job Description:\n${jobDescription}\n\n## Candidate Resume:\n${resumeText}\n\nAnalyze this resume against the job description and provide your assessment as a valid JSON object.` },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Anthropic API error (${response.status}): ${errorText.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const content = data.content?.[0]?.text;
+  if (!content || content.trim().length === 0) {
+    throw new Error('Empty response from Anthropic');
+  }
+  return parseAIResponse(content);
+}
+
+/**
+ * Analyze using Google Gemini API
+ */
+async function analyzeWithGoogle(
+  resumeText: string,
+  jobDescription: string,
+  apiKey: string,
+  baseUrl: string | null,
+  model: string,
+  temperature: number,
+  maxTokens: number
+): Promise<AnalysisResult> {
+  const modelName = model === 'default' ? 'gemini-2.0-flash' : model;
+  const endpoint = baseUrl || `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{
+          text: `${SYSTEM_PROMPT}\n\n## Job Description:\n${jobDescription}\n\n## Candidate Resume:\n${resumeText}\n\nAnalyze this resume against the job description and provide your assessment as a valid JSON object.`
+        }]
+      }],
+      generationConfig: {
+        maxOutputTokens: maxTokens,
+        temperature,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Google AI API error (${response.status}): ${errorText.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!content || content.trim().length === 0) {
+    throw new Error('Empty response from Google AI');
+  }
+  return parseAIResponse(content);
+}
+
+/**
+ * Parse and validate AI response
+ */
+function parseAIResponse(response: string): AnalysisResult {
+  let jsonStr = response.trim();
+
+  // Remove markdown code block formatting if present
+  if (jsonStr.startsWith('```json')) {
+    jsonStr = jsonStr.slice(7);
+  } else if (jsonStr.startsWith('```')) {
+    jsonStr = jsonStr.slice(3);
+  }
+  if (jsonStr.endsWith('```')) {
+    jsonStr = jsonStr.slice(0, -3);
+  }
+  jsonStr = jsonStr.trim();
+
+  const result: AnalysisResult = JSON.parse(jsonStr);
+
+  // Validate the structure
+  if (!result.candidate_overview || typeof result.scoring !== 'number' ||
+    !result.assessment || !result.professional_audit || !result.recommendation) {
+    throw new Error('Invalid response structure from AI');
+  }
+
+  // Clamp scoring to 1-10
+  result.scoring = Math.max(1, Math.min(10, Math.round(result.scoring)));
+
+  // Ensure arrays exist
+  if (!Array.isArray(result.professional_audit.pros)) {
+    result.professional_audit.pros = [String(result.professional_audit.pros)];
+  }
+  if (!Array.isArray(result.professional_audit.cons)) {
+    result.professional_audit.cons = [String(result.professional_audit.cons)];
+  }
+  if (!Array.isArray(result.professional_audit.red_flags)) {
+    result.professional_audit.red_flags = [String(result.professional_audit.red_flags)];
+  }
+
+  return result;
+}
+
+/**
+ * Main analysis function - reads user settings and routes to appropriate provider
+ */
+export async function analyzeResume(
+  resumeText: string,
+  jobDescription: string,
+  userId?: string
+): Promise<AnalysisResult> {
+  const settings = await getUserSettings(userId);
+
+  const provider = settings?.provider || 'z-ai';
+  const model = settings?.model || 'default';
+  const apiKey = settings?.apiKey || null;
+  const baseUrl = settings?.baseUrl || null;
+  const temperature = settings?.temperature ?? 0.7;
+  const maxTokens = settings?.maxTokens ?? 4096;
+
   const maxRetries = 3;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const completion = await zai.chat.completions.create({
-        messages: [
-          {
-            role: 'assistant',
-            content: SYSTEM_PROMPT,
-          },
-          {
-            role: 'user',
-            content: userMessage,
-          },
-        ],
-        thinking: { type: 'disabled' },
-      });
+      switch (provider) {
+        case 'z-ai':
+          return await analyzeWithZAI(resumeText, jobDescription);
 
-      const response = completion.choices[0]?.message?.content;
+        case 'openai':
+        case 'custom':
+          if (!apiKey) throw new Error('API key is required for OpenAI/Custom provider');
+          return await analyzeWithOpenAI(resumeText, jobDescription, apiKey, baseUrl, model, temperature, maxTokens);
 
-      if (!response || response.trim().length === 0) {
-        throw new Error('Empty response from AI');
+        case 'anthropic':
+          if (!apiKey) throw new Error('API key is required for Anthropic provider');
+          return await analyzeWithAnthropic(resumeText, jobDescription, apiKey, baseUrl, model, temperature, maxTokens);
+
+        case 'google':
+          if (!apiKey) throw new Error('API key is required for Google AI provider');
+          return await analyzeWithGoogle(resumeText, jobDescription, apiKey, baseUrl, model, temperature, maxTokens);
+
+        default:
+          throw new Error(`Unknown AI provider: ${provider}`);
       }
-
-      // Parse the JSON response - handle potential markdown code blocks
-      let jsonStr = response.trim();
-      
-      // Remove markdown code block formatting if present
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.slice(7);
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.slice(3);
-      }
-      if (jsonStr.endsWith('```')) {
-        jsonStr = jsonStr.slice(0, -3);
-      }
-      jsonStr = jsonStr.trim();
-
-      const result: AnalysisResult = JSON.parse(jsonStr);
-
-      // Validate the structure
-      if (!result.candidate_overview || typeof result.scoring !== 'number' || 
-          !result.assessment || !result.professional_audit || !result.recommendation) {
-        throw new Error('Invalid response structure from AI');
-      }
-
-      // Clamp scoring to 1-10
-      result.scoring = Math.max(1, Math.min(10, Math.round(result.scoring)));
-
-      // Ensure arrays exist
-      if (!Array.isArray(result.professional_audit.pros)) {
-        result.professional_audit.pros = [String(result.professional_audit.pros)];
-      }
-      if (!Array.isArray(result.professional_audit.cons)) {
-        result.professional_audit.cons = [String(result.professional_audit.cons)];
-      }
-      if (!Array.isArray(result.professional_audit.red_flags)) {
-        result.professional_audit.red_flags = [String(result.professional_audit.red_flags)];
-      }
-
-      return result;
     } catch (error) {
       lastError = error as Error;
-      console.error(`AI analysis attempt ${attempt} failed:`, error);
+      console.error(`AI analysis attempt ${attempt} failed (${provider}):`, error);
 
       if (attempt < maxRetries) {
-        // Wait before retry with exponential backoff
         await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
 
-  throw new Error(`AI analysis failed after ${maxRetries} attempts: ${lastError?.message}`);
+  throw new Error(`AI analysis failed after ${maxRetries} attempts (${provider}): ${lastError?.message}`);
 }

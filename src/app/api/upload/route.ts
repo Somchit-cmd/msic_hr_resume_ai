@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { validateFile, saveFile, extractTextFromFile, sanitizeText } from '@/lib/file-processor';
 import { analyzeResume } from '@/lib/ai-analyzer';
@@ -54,11 +56,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get current user ID for AI settings
+    let userId: string | undefined;
+    try {
+      const session = await getServerSession(authOptions);
+      userId = (session?.user as { id?: string })?.id;
+    } catch { /* ignore */ }
+
     // Analyze resume with AI
     const sanitizedJD = sanitizeText(jobDescription);
     let analysis;
     try {
-      analysis = await analyzeResume(extractedText, sanitizedJD);
+      analysis = await analyzeResume(extractedText, sanitizedJD, userId);
     } catch (error) {
       // Save the candidate with error status
       await db.candidate.create({

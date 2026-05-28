@@ -54,3 +54,47 @@ Stage Summary:
 - Templates track usage count and are sorted by most used
 - All template data is stored in Neon PostgreSQL per-user
 - API secured with authentication
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Add AI Model Settings feature (provider, model, API key, temperature, max tokens)
+
+Work Log:
+- Added AISettings model to Prisma schema: provider, model, apiKey, baseUrl, temperature, maxTokens, userId (unique, FK to User)
+- Updated User model to include `aiSettings AISettings?` one-to-one relation
+- Pushed schema to Neon PostgreSQL - sync successful
+- Created API route: /api/ai-settings (GET with masked API key, PUT with validation, POST for connection test)
+- API key masking: GET returns `••••••••XXXX` format, PUT only updates apiKey if not masked value
+- Connection testing: supports Z-AI SDK, OpenAI, Anthropic, Google Gemini, and custom OpenAI-compatible endpoints
+- Completely rewrote /src/lib/ai-analyzer.ts to support multiple providers:
+  - Z-AI (default, uses z-ai-web-dev-sdk)
+  - OpenAI (fetch to api.openai.com or custom base URL)
+  - Anthropic (fetch to api.anthropic.com with x-api-key header)
+  - Google Gemini (fetch to generativelanguage.googleapis.com)
+  - Custom (any OpenAI-compatible endpoint)
+- Analyzer reads user settings from DB and routes to appropriate provider
+- Updated /api/upload/route.ts to pass userId to analyzeResume for provider selection
+- Added AI Settings UI dialog to dashboard:
+  - "AI Model" button in header with provider badge
+  - Provider selector: Z-AI, OpenAI, Anthropic, Google AI, Custom
+  - Model selector with provider-specific options (GPT-4o, Claude Sonnet, Gemini, etc.)
+  - API key input with show/hide toggle and "on file" indicator
+  - Custom base URL input for OpenAI-compatible endpoints
+  - Temperature slider (0-2) with labels
+  - Max Tokens input (256-128,000)
+  - Test Connection button with visual result feedback
+  - Save Settings button
+- Added new Lucide icons: Settings, Cpu, Key, Zap, CheckCircle, Globe
+- Added Slider and Switch component imports
+- Lint check passed with zero errors
+- Dev server restarted and all pages responding (200)
+
+Stage Summary:
+- AI Model Settings feature fully implemented end-to-end
+- Default: Z-AI (free, built-in, no config needed)
+- Supports 5 providers: Z-AI, OpenAI, Anthropic, Google Gemini, Custom
+- Per-user settings stored in Neon PostgreSQL
+- API keys masked in API responses for security
+- Connection test validates provider + API key + model configuration
+- Upload flow automatically uses user's configured AI provider
