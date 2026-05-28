@@ -172,24 +172,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Demo Credentials */}
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
-              <p className="text-xs font-medium text-gray-600 mb-1.5">
-                Demo Credentials:
-              </p>
-              <div className="text-xs text-gray-500 space-y-0.5">
-                <p>
-                  Email:{" "}
-                  <span className="font-mono text-gray-700">
-                    admin@resumescreen.ai
-                  </span>
-                </p>
-                <p>
-                  Password:{" "}
-                  <span className="font-mono text-gray-700">admin123</span>
-                </p>
-              </div>
-            </div>
+
           </CardContent>
         </Card>
 
