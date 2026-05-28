@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Candidate {
+  id                String   @id @default(cuid())
+  fileName          String
+  filePath          String
+  jobDescription    String
+  candidateOverview String
+  scoring           Int
+  assessment        String
+  professionalAudit String   // JSON string: { pros: string[], cons: string[], red_flags: string[] }
+  recommendation    String
+  extractedText     String?  // Store extracted resume text for reference
+  status            String   @default("completed") // completed, processing, error
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
