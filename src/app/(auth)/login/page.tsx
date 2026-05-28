@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Briefcase,
   Mail,
@@ -63,10 +64,14 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200">
-            <Briefcase className="h-7 w-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">ResumeScreen AI</h1>
+          <Image
+            src="https://i.imgur.com/6IUx9ox.png"
+            alt="MSIC ResumeScreen AI"
+            width={56}
+            height={56}
+            className="rounded-xl mx-auto mb-4 shadow-lg shadow-emerald-200"
+          />
+          <h1 className="text-2xl font-bold text-gray-900">MSIC ResumeScreen AI</h1>
           <p className="text-sm text-gray-500 mt-1">
             Sign in to access the screening dashboard
           </p>
@@ -178,7 +183,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-xs text-gray-400 text-center mt-6">
-          ResumeScreen AI — Secure HR Screening Platform
+          MSIC ResumeScreen AI — Secure HR Screening Platform
         </p>
       </div>
     </div>
