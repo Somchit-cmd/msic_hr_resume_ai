@@ -204,7 +204,7 @@ async function analyzeWithZAIKey(
 }
 
 /**
- * Analyze using OpenAI-compatible API
+ * Analyze using OpenAI-compatible API (also works with OpenRouter, Groq, etc.)
  */
 async function analyzeWithOpenAI(
   resumeText: string,
@@ -218,12 +218,20 @@ async function analyzeWithOpenAI(
   const endpoint = baseUrl || 'https://api.openai.com/v1/chat/completions';
   const modelName = model === 'default' ? 'gpt-4o-mini' : model;
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  // Add OpenRouter-specific headers if using OpenRouter
+  if (endpoint.includes('openrouter.ai')) {
+    headers['HTTP-Referer'] = process.env.NEXTAUTH_URL || 'https://msic-hr-ai.msigsx.com';
+    headers['X-Title'] = 'HR Resume Screen AI';
+  }
+
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
       model: modelName,
       messages: [
@@ -237,13 +245,13 @@ async function analyzeWithOpenAI(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`OpenAI API error (${response.status}): ${errorText.substring(0, 200)}`);
+    throw new Error(`API error (${response.status}): ${errorText.substring(0, 200)}`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
   if (!content || content.trim().length === 0) {
-    throw new Error('Empty response from OpenAI');
+    throw new Error('Empty response from AI');
   }
   return parseAIResponse(content);
 }
@@ -423,7 +431,8 @@ export async function analyzeResume(
 
         case 'openai':
         case 'custom':
-          if (!apiKey) throw new Error('API key is required for OpenAI/Custom provider');
+        case 'openrouter':
+          if (!apiKey) throw new Error('API key is required for this provider');
           return await analyzeWithOpenAI(resumeText, jobDescription, apiKey, baseUrl, model, temperature, maxTokens);
 
         case 'anthropic':

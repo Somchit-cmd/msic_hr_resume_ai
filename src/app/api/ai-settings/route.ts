@@ -62,7 +62,7 @@ export async function PUT(request: NextRequest) {
     } = body;
 
     // Validate provider
-    const validProviders = ["z-ai", "openai", "anthropic", "google", "custom"];
+    const validProviders = ["z-ai", "openai", "anthropic", "google", "custom", "openrouter"];
     if (provider && !validProviders.includes(provider)) {
       return NextResponse.json(
         { error: `Invalid provider. Must be one of: ${validProviders.join(", ")}` },
@@ -291,18 +291,36 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Test OpenAI-compatible endpoint
-    if (provider === "openai" || provider === "custom") {
-      const endpoint = baseUrl || "https://api.openai.com/v1/chat/completions";
+    // Test OpenAI-compatible endpoint (also handles OpenRouter and Custom)
+    if (provider === "openai" || provider === "custom" || provider === "openrouter") {
+      let endpoint = baseUrl || "https://api.openai.com/v1/chat/completions";
+      
+      // OpenRouter default endpoint
+      if (provider === "openrouter" && !baseUrl) {
+        endpoint = "https://openrouter.ai/api/v1/chat/completions";
+      }
+
+      const testHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      };
+
+      // Add OpenRouter-specific headers
+      if (endpoint.includes("openrouter.ai")) {
+        testHeaders["HTTP-Referer"] = process.env.NEXTAUTH_URL || "https://msic-hr-ai.msigsx.com";
+        testHeaders["X-Title"] = "HR Resume Screen AI";
+      }
+
+      const modelName = provider === "openrouter" 
+        ? (model === "default" ? "openai/gpt-4o-mini" : model)
+        : (model === "default" ? "gpt-4o-mini" : model);
+
       try {
         const response = await fetch(endpoint, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers: testHeaders,
           body: JSON.stringify({
-            model: model === "default" ? "gpt-4o-mini" : model,
+            model: modelName,
             messages: [
               { role: "system", content: "You are a helpful assistant." },
               { role: "user", content: "Say 'Connection successful' and nothing else." },
@@ -316,7 +334,7 @@ export async function POST(request: NextRequest) {
           const errorData = await response.text();
           return NextResponse.json({
             success: false,
-            message: `OpenAI API error (${response.status}): ${errorData.substring(0, 200)}`,
+            message: `${provider === "openrouter" ? "OpenRouter" : "OpenAI"} API error (${response.status}): ${errorData.substring(0, 200)}`,
             provider,
           }, { status: 400 });
         }
@@ -325,10 +343,10 @@ export async function POST(request: NextRequest) {
         const content = data.choices?.[0]?.message?.content;
         return NextResponse.json({
           success: true,
-          message: `OpenAI connection successful`,
+          message: `${provider === "openrouter" ? "OpenRouter" : "OpenAI"} connection successful`,
           response: content?.substring(0, 100),
           provider,
-          model: model === "default" ? "gpt-4o-mini" : model,
+          model: modelName,
         });
       } catch (error) {
         return NextResponse.json({

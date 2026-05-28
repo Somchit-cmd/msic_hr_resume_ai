@@ -467,6 +467,18 @@ export default function Dashboard() {
         return [
           { value: "default", label: "Custom Model (enter name)" },
         ];
+      case "openrouter":
+        return [
+          { value: "qwen/qwen3-235b-a22b", label: "Qwen3 235B (Free)" },
+          { value: "qwen/qwen3-30b-a3b", label: "Qwen3 30B (Free)" },
+          { value: "google/gemma-3-27b-it", label: "Gemma 3 27B (Free)" },
+          { value: "deepseek/deepseek-chat-v3-0324", label: "DeepSeek V3 (Free)" },
+          { value: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick" },
+          { value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
+          { value: "openai/gpt-4o", label: "GPT-4o" },
+          { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4" },
+          { value: "google/gemini-2.5-flash-preview", label: "Gemini 2.5 Flash" },
+        ];
       default:
         return [{ value: "default", label: "Default" }];
     }
@@ -2307,6 +2319,7 @@ export default function Dashboard() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="z-ai">Z-AI</SelectItem>
+                    <SelectItem value="openrouter">OpenRouter</SelectItem>
                     <SelectItem value="openai">OpenAI</SelectItem>
                     <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
                     <SelectItem value="google">Google AI (Gemini)</SelectItem>
