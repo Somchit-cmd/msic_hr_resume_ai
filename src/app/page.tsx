@@ -427,7 +427,8 @@ export default function Dashboard() {
         ];
       case "z-ai":
         return [
-          { value: "default", label: "Z-AI Default" },
+          { value: "default", label: "Free (Built-in)" },
+          { value: "z-ai-api-key", label: "With My API Key" },
         ];
       case "custom":
         return [
@@ -438,7 +439,7 @@ export default function Dashboard() {
     }
   };
 
-  const needsApiKey = aiSettings.provider !== "z-ai";
+  const needsApiKey = aiSettings.provider !== "z-ai" || aiSettings.model === "z-ai-api-key";
   const needsBaseUrl = aiSettings.provider === "custom";
 
   // Save current JD form as template
@@ -792,6 +793,11 @@ export default function Dashboard() {
                 {aiSettings.provider !== "z-ai" && (
                   <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700">
                     {aiSettings.provider}
+                  </Badge>
+                )}
+                {aiSettings.provider === "z-ai" && aiSettings.model === "z-ai-api-key" && (
+                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700">
+                    API Key
                   </Badge>
                 )}
               </Button>
@@ -1929,18 +1935,20 @@ export default function Dashboard() {
             <div className="space-y-5 py-2 pr-2">
               {/* Current Status */}
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
-                <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${aiSettings.provider === "z-ai" ? "bg-emerald-100" : "bg-amber-100"}`}>
-                  <Zap className={`h-4 w-4 ${aiSettings.provider === "z-ai" ? "text-emerald-600" : "text-amber-600"}`} />
+                <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${aiSettings.provider === "z-ai" && aiSettings.model !== "z-ai-api-key" ? "bg-emerald-100" : "bg-amber-100"}`}>
+                  <Zap className={`h-4 w-4 ${aiSettings.provider === "z-ai" && aiSettings.model !== "z-ai-api-key" ? "text-emerald-600" : "text-amber-600"}`} />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">
-                    Active: {aiSettings.provider === "z-ai" ? "Z-AI (Built-in)" : aiSettings.provider.charAt(0).toUpperCase() + aiSettings.provider.slice(1)}
+                    Active: {aiSettings.provider === "z-ai"
+                      ? aiSettings.model === "z-ai-api-key" ? "Z-AI (API Key)" : "Z-AI (Free)"
+                      : aiSettings.provider.charAt(0).toUpperCase() + aiSettings.provider.slice(1)}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {aiSettings.provider === "z-ai"
+                    {aiSettings.provider === "z-ai" && aiSettings.model !== "z-ai-api-key"
                       ? "Free built-in AI — no configuration needed"
                       : aiSettings.hasApiKey || aiSettings.apiKey
-                        ? `Model: ${aiSettings.model === "default" ? "Default" : aiSettings.model}`
+                        ? `Model: ${aiSettings.model === "default" || aiSettings.model === "z-ai-api-key" ? "Default" : aiSettings.model}`
                         : "⚠️ API key required"}
                   </p>
                 </div>
@@ -1970,7 +1978,7 @@ export default function Dashboard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="z-ai">Z-AI (Built-in — Free)</SelectItem>
+                    <SelectItem value="z-ai">Z-AI</SelectItem>
                     <SelectItem value="openai">OpenAI</SelectItem>
                     <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
                     <SelectItem value="google">Google AI (Gemini)</SelectItem>
@@ -1980,42 +1988,52 @@ export default function Dashboard() {
               </div>
 
               {/* Model Selection */}
-              {aiSettings.provider !== "z-ai" && (
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-gray-700 flex items-center gap-1.5">
-                    <Cpu className="h-3.5 w-3.5" />
-                    Model
-                  </Label>
-                  {aiSettings.provider === "custom" ? (
-                    <Input
-                      placeholder="e.g. my-model-v1"
-                      value={aiSettings.model === "default" ? "" : aiSettings.model}
-                      onChange={(e) =>
-                        setAiSettings((prev) => ({ ...prev, model: e.target.value || "default" }))
-                      }
-                      className="text-sm"
-                    />
-                  ) : (
-                    <Select
-                      value={aiSettings.model}
-                      onValueChange={(value) =>
-                        setAiSettings((prev) => ({ ...prev, model: value }))
-                      }
-                    >
-                      <SelectTrigger className="w-full text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getModelOptions(aiSettings.provider).map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <Label className="text-sm text-gray-700 flex items-center gap-1.5">
+                  <Cpu className="h-3.5 w-3.5" />
+                  {aiSettings.provider === "z-ai" ? "Access Mode" : "Model"}
+                </Label>
+                {aiSettings.provider === "custom" ? (
+                  <Input
+                    placeholder="e.g. my-model-v1"
+                    value={aiSettings.model === "default" ? "" : aiSettings.model}
+                    onChange={(e) =>
+                      setAiSettings((prev) => ({ ...prev, model: e.target.value || "default" }))
+                    }
+                    className="text-sm"
+                  />
+                ) : (
+                  <Select
+                    value={aiSettings.model}
+                    onValueChange={(value) => {
+                      setAiSettings((prev) => ({ ...prev, model: value, apiKey: "", hasApiKey: false }));
+                      setTestResult(null);
+                    }}
+                  >
+                    <SelectTrigger className="w-full text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getModelOptions(aiSettings.provider).map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {aiSettings.provider === "z-ai" && aiSettings.model === "default" && (
+                  <p className="text-xs text-gray-400">
+                    Free built-in AI with no API key needed. Has rate limits.
+                  </p>
+                )}
+                {aiSettings.provider === "z-ai" && aiSettings.model === "z-ai-api-key" && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <Key className="h-3 w-3" />
+                    Use your own Z-AI API key for higher limits and priority access.
+                  </p>
+                )}
+              </div>
 
               {/* API Key */}
               {needsApiKey && (
@@ -2028,7 +2046,7 @@ export default function Dashboard() {
                     <div className="relative flex-1">
                       <Input
                         type={showApiKey ? "text" : "password"}
-                        placeholder={aiSettings.hasApiKey ? "Enter new key to replace, or leave as-is" : `Enter your ${aiSettings.provider} API key`}
+                        placeholder={aiSettings.hasApiKey ? "Enter new key to replace, or leave as-is" : aiSettings.provider === "z-ai" ? "Enter your Z-AI API key" : `Enter your ${aiSettings.provider} API key`}
                         value={aiSettings.apiKey}
                         onChange={(e) =>
                           setAiSettings((prev) => ({ ...prev, apiKey: e.target.value }))

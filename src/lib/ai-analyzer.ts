@@ -30,7 +30,7 @@ export interface AnalysisResult {
   recommendation: string;
 }
 
-// Z-AI singleton
+// Z-AI singleton (free mode)
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
 
 async function getZAI() {
@@ -54,7 +54,7 @@ async function getUserSettings(userId?: string) {
 }
 
 /**
- * Analyze using Z-AI SDK (default)
+ * Analyze using Z-AI SDK (default free mode)
  */
 async function analyzeWithZAI(resumeText: string, jobDescription: string): Promise<AnalysisResult> {
   const zai = await getZAI();
@@ -80,6 +80,49 @@ Analyze this resume against the job description and provide your assessment as a
     throw new Error('Empty response from Z-AI');
   }
   return parseAIResponse(response);
+}
+
+/**
+ * Analyze using Z-AI with a custom API key (OpenAI-compatible endpoint)
+ */
+async function analyzeWithZAIKey(
+  resumeText: string,
+  jobDescription: string,
+  apiKey: string,
+  baseUrl: string | null,
+  temperature: number,
+  maxTokens: number
+): Promise<AnalysisResult> {
+  const endpoint = baseUrl || 'https://api.z-ai.online/v1/chat/completions';
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'default',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `## Job Description:\n${jobDescription}\n\n## Candidate Resume:\n${resumeText}\n\nAnalyze this resume against the job description and provide your assessment as a valid JSON object.` },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Z-AI API error (${response.status}): ${errorText.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content || content.trim().length === 0) {
+    throw new Error('Empty response from Z-AI (API Key mode)');
+  }
+  return parseAIResponse(content);
 }
 
 /**
@@ -283,6 +326,10 @@ export async function analyzeResume(
     try {
       switch (provider) {
         case 'z-ai':
+          if (model === 'z-ai-api-key') {
+            if (!apiKey) throw new Error('API key is required for Z-AI with custom key');
+            return await analyzeWithZAIKey(resumeText, jobDescription, apiKey, baseUrl, temperature, maxTokens);
+          }
           return await analyzeWithZAI(resumeText, jobDescription);
 
         case 'openai':
@@ -303,7 +350,7 @@ export async function analyzeResume(
       }
     } catch (error) {
       lastError = error as Error;
-      console.error(`AI analysis attempt ${attempt} failed (${provider}):`, error);
+      console.error(`AI analysis attempt ${attempt} failed (${provider}/${model}):`, error);
 
       if (attempt < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
@@ -311,5 +358,5 @@ export async function analyzeResume(
     }
   }
 
-  throw new Error(`AI analysis failed after ${maxRetries} attempts (${provider}): ${lastError?.message}`);
+  throw new Error(`AI analysis failed after ${maxRetries} attempts (${provider}/${model}): ${lastError?.message}`);
 }

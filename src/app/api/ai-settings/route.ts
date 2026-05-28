@@ -104,8 +104,8 @@ export async function PUT(request: NextRequest) {
       // If it starts with ••••, it's the masked value from GET - don't update
     }
 
-    // For external providers, ensure API key is set
-    if (provider && provider !== "z-ai") {
+    // For external providers or z-ai with custom key, ensure API key is set
+    if (provider && (provider !== "z-ai" || model === "z-ai-api-key")) {
       const existing = await db.aISettings.findUnique({ where: { userId } });
       const effectiveApiKey = updateData.apiKey !== undefined
         ? updateData.apiKey
@@ -170,7 +170,62 @@ export async function POST(request: NextRequest) {
     const { provider, apiKey, baseUrl, model } = settings;
 
     if (provider === "z-ai") {
-      // Test z-ai SDK
+      // If using Z-AI with custom API key
+      if (model === "z-ai-api-key") {
+        if (!apiKey) {
+          return NextResponse.json({
+            success: false,
+            message: "API key is required for Z-AI with custom key mode",
+            provider: "z-ai",
+          }, { status: 400 });
+        }
+        const endpoint = baseUrl || "https://api.z-ai.online/v1/chat/completions";
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: "default",
+              messages: [
+                { role: "system", content: "You are a helpful assistant." },
+                { role: "user", content: "Say 'Connection successful' and nothing else." },
+              ],
+              max_tokens: 20,
+              temperature: 0.1,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.text();
+            return NextResponse.json({
+              success: false,
+              message: `Z-AI API error (${response.status}): ${errorData.substring(0, 200)}`,
+              provider: "z-ai",
+            }, { status: 400 });
+          }
+
+          const data = await response.json();
+          const content = data.choices?.[0]?.message?.content;
+          return NextResponse.json({
+            success: true,
+            message: `Z-AI (API Key) connection successful`,
+            response: content?.substring(0, 100),
+            provider: "z-ai",
+            model: "z-ai-api-key",
+          });
+        } catch (error) {
+          return NextResponse.json({
+            success: false,
+            message: `Z-AI connection failed: ${(error as Error).message}`,
+            provider: "z-ai",
+          }, { status: 400 });
+        }
+      }
+
+      // Test z-ai SDK (free mode)
       try {
         const ZAI = (await import("z-ai-web-dev-sdk")).default;
         const zai = await ZAI.create();
@@ -184,10 +239,10 @@ export async function POST(request: NextRequest) {
         const response = completion.choices[0]?.message?.content;
         return NextResponse.json({
           success: true,
-          message: `Z-AI connection successful`,
+          message: `Z-AI (Free) connection successful`,
           response: response?.substring(0, 100),
           provider: "z-ai",
-          model: model,
+          model: "default",
         });
       } catch (error) {
         return NextResponse.json({
