@@ -39,7 +39,10 @@ export async function GET() {
     const admin = await db.user.findUnique({
       where: { email: 'admin@resumescreen.ai' },
     });
-    checks.AdminUser = admin ? `✅ Exists` : '❌ Not found - run seed script';
+    checks.AdminUser = admin ? `✅ Exists (role: ${admin.role})` : '❌ Not found - run seed script';
+    if (admin && admin.role !== 'admin') {
+      checks.AdminRole = `⚠️ User has role "${admin.role}" — call /api/setup to upgrade to admin`;
+    }
   } catch (error) {
     const errMsg = (error as Error).message;
     checks.Database = `❌ Error: ${errMsg.substring(0, 200)}`;

@@ -16,12 +16,19 @@ async function seed() {
         email: "admin@resumescreen.ai",
         name: "HR Admin",
         password: hashedPassword,
-        role: "hr",
+        role: "admin",
       },
     });
-    console.log(`✅ Created default user: ${user.email}`);
+    console.log(`✅ Created default admin user: ${user.email}`);
+  } else if (existingUser.role !== "admin") {
+    // Upgrade existing user to admin role
+    await db.user.update({
+      where: { email: "admin@resumescreen.ai" },
+      data: { role: "admin" },
+    });
+    console.log(`✅ Upgraded existing user to admin role: ${existingUser.email}`);
   } else {
-    console.log("⏭️  Default user already exists");
+    console.log("⏭️  Default admin user already exists with admin role");
   }
 
   console.log("🎉 Seeding complete!");

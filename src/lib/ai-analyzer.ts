@@ -99,12 +99,14 @@ async function getZAIConfig(): Promise<ZAIConfig> {
 }
 
 /**
- * Get AI settings for a user, or return defaults
+ * Get system AI settings (from the admin user - system-wide config)
  */
-async function getUserSettings(userId?: string) {
-  if (!userId) return null;
+async function getSystemSettings() {
   try {
-    const settings = await db.aISettings.findUnique({ where: { userId } });
+    // Find the admin user and use their AI settings
+    const admin = await db.user.findFirst({ where: { role: "admin" } });
+    if (!admin) return null;
+    const settings = await db.aISettings.findUnique({ where: { userId: admin.id } });
     return settings;
   } catch {
     return null;
@@ -459,7 +461,7 @@ export async function analyzeResume(
   jobDescription: string,
   userId?: string
 ): Promise<AnalysisResult> {
-  const settings = await getUserSettings(userId);
+  const settings = await getSystemSettings();
 
   const provider = settings?.provider || 'z-ai';
   const model = settings?.model || 'default';

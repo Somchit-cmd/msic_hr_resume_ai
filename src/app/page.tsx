@@ -212,6 +212,7 @@ export default function Dashboard() {
 
   // AI Settings state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [aiSettings, setAiSettings] = useState({
     provider: "z-ai",
     model: "default",
@@ -369,6 +370,7 @@ export default function Dashboard() {
           hasApiKey: data.settings.hasApiKey || false,
         });
       }
+      setIsAdminUser(data.isAdmin === true);
     } catch {
       /* use defaults */
     }
@@ -847,27 +849,38 @@ export default function Dashboard() {
                     <User className="h-3.5 w-3.5 text-emerald-700" />
                   </div>
                   <span className="text-xs">{(session.user as { name?: string }).name || session.user.email}</span>
+                  {isAdminUser && (
+                    <Badge className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0 h-4">Admin</Badge>
+                  )}
                 </div>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setIsSettingsOpen(true); setTestResult(null); fetchAISettings(); }}
-                className="gap-2"
-              >
-                <Cpu className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">AI Model</span>
-                {aiSettings.provider !== "z-ai" && (
-                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700">
-                    {aiSettings.provider}
-                  </Badge>
-                )}
-                {aiSettings.provider === "z-ai" && aiSettings.model === "z-ai-api-key" && (
-                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700">
-                    API Key
-                  </Badge>
-                )}
-              </Button>
+              {isAdminUser && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setIsSettingsOpen(true); setTestResult(null); fetchAISettings(); }}
+                  className="gap-2"
+                >
+                  <Cpu className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">AI Model</span>
+                  {aiSettings.provider !== "z-ai" && (
+                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700">
+                      {aiSettings.provider}
+                    </Badge>
+                  )}
+                  {aiSettings.provider === "z-ai" && aiSettings.model === "z-ai-api-key" && (
+                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700">
+                      API Key
+                    </Badge>
+                  )}
+                </Button>
+              )}
+              {!isAdminUser && aiSettings.provider !== "z-ai" && (
+                <Badge variant="outline" className="gap-1.5 text-xs px-2.5 py-1">
+                  <Cpu className="h-3 w-3" />
+                  AI: {aiSettings.provider}
+                </Badge>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -2264,16 +2277,17 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* AI Settings Dialog */}
+      {/* AI Settings Dialog (Admin Only) */}
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Cpu className="h-5 w-5 text-emerald-600" />
+              <Shield className="h-5 w-5 text-emerald-600" />
               AI Model Settings
+              <Badge className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0 h-4">Admin</Badge>
             </DialogTitle>
             <DialogDescription>
-              Configure the AI model used for resume screening analysis.
+              Configure the AI model used for resume screening. Only system administrators can modify these settings.
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh]">

@@ -3,7 +3,27 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-// GET /api/ai-settings - Get current user's AI settings
+/**
+ * Helper: Get the system admin user
+ */
+async function getAdminUser() {
+  return db.user.findFirst({ where: { role: "admin" } });
+}
+
+/**
+ * Helper: Check if current user is admin
+ */
+async function isAdmin(): Promise<{ session: NonNullable<Awaited<ReturnType<typeof getServerSession>>>; userId: string } | null> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return null;
+
+  const role = (session.user as unknown as { role: string }).role;
+  if (role !== "admin") return null;
+
+  return { session, userId: (session.user as { id: string }).id };
+}
+
+// GET /api/ai-settings - Get system AI settings (available to all authenticated users)
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -11,14 +31,31 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = (session.user as { id: string }).id;
+    const role = (session.user as unknown as { role: string }).role;
 
-    let settings = await db.aISettings.findUnique({ where: { userId } });
+    // Find admin user's AI settings (system-wide)
+    const admin = await getAdminUser();
+    if (!admin) {
+      return NextResponse.json({
+        settings: {
+          provider: "z-ai",
+          model: "default",
+          apiKey: null,
+          baseUrl: null,
+          temperature: 0.7,
+          maxTokens: 4096,
+          hasApiKey: false,
+        },
+        isAdmin: role === "admin",
+      });
+    }
+
+    let settings = await db.aISettings.findUnique({ where: { userId: admin.id } });
 
     // Create default settings if none exist
     if (!settings) {
       settings = await db.aISettings.create({
-        data: { userId },
+        data: { userId: admin.id },
       });
     }
 
@@ -31,7 +68,7 @@ export async function GET() {
       hasApiKey: !!settings.apiKey,
     };
 
-    return NextResponse.json({ settings: maskedSettings });
+    return NextResponse.json({ settings: maskedSettings, isAdmin: role === "admin" });
   } catch (error) {
     console.error("Error fetching AI settings:", error);
     return NextResponse.json(
@@ -41,15 +78,22 @@ export async function GET() {
   }
 }
 
-// PUT /api/ai-settings - Update AI settings
+// PUT /api/ai-settings - Update AI settings (admin only)
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const adminCheck = await isAdmin();
+    if (!adminCheck) {
+      return NextResponse.json(
+        { error: "Forbidden: Only system administrators can configure AI model settings" },
+        { status: 403 }
+      );
     }
 
-    const userId = (session.user as { id: string }).id;
+    const admin = await getAdminUser();
+    if (!admin) {
+      return NextResponse.json({ error: "No admin user found" }, { status: 500 });
+    }
+
     const body = await request.json();
 
     const {
@@ -103,11 +147,12 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Always use admin user's settings (system-wide)
     const settings = await db.aISettings.upsert({
-      where: { userId },
+      where: { userId: admin.id },
       update: updateData,
       create: {
-        userId,
+        userId: admin.id,
         provider: provider || "z-ai",
         model: model || "default",
         apiKey: (apiKey && !apiKey.startsWith("••••")) ? apiKey : null,
@@ -136,16 +181,23 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// POST /api/ai-settings - Test connection
+// POST /api/ai-settings - Test connection (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const adminCheck = await isAdmin();
+    if (!adminCheck) {
+      return NextResponse.json(
+        { error: "Forbidden: Only system administrators can test AI connections" },
+        { status: 403 }
+      );
     }
 
-    const userId = (session.user as { id: string }).id;
-    const settings = await db.aISettings.findUnique({ where: { userId } });
+    const admin = await getAdminUser();
+    if (!admin) {
+      return NextResponse.json({ error: "No admin user found" }, { status: 500 });
+    }
+
+    const settings = await db.aISettings.findUnique({ where: { userId: admin.id } });
 
     if (!settings) {
       return NextResponse.json(
@@ -315,7 +367,7 @@ export async function POST(request: NextRequest) {
       // Add OpenRouter-specific headers
       if (endpoint.includes("openrouter.ai")) {
         testHeaders["HTTP-Referer"] = process.env.NEXTAUTH_URL || "https://msic-hr-ai.msigsx.com";
-        testHeaders["X-Title"] = "MSIC HR Resume AI";
+        testHeaders["X-Title"] = "MSIG Sokxay HR Resume AI";
       }
 
       const modelName = provider === "openrouter" 
