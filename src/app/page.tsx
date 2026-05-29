@@ -481,6 +481,7 @@ export default function Dashboard() {
           { value: "openai/gpt-4o", label: "GPT-4o" },
           { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4" },
           { value: "google/gemini-2.5-flash-preview", label: "Gemini 2.5 Flash" },
+          { value: "custom", label: "✏️ Custom Model..." },
         ];
       default:
         return [{ value: "default", label: "Default" }];
@@ -2353,10 +2354,10 @@ export default function Dashboard() {
                   <Cpu className="h-3.5 w-3.5" />
                   {aiSettings.provider === "z-ai" ? "Access Mode" : "Model"}
                 </Label>
-                {aiSettings.provider === "custom" ? (
+                {(aiSettings.provider === "custom" || (aiSettings.provider === "openrouter" && aiSettings.model === "custom")) ? (
                   <Input
-                    placeholder="e.g. my-model-v1"
-                    value={aiSettings.model === "default" ? "" : aiSettings.model}
+                    placeholder={aiSettings.provider === "openrouter" ? "e.g. deepseek/deepseek-v4-flash" : "e.g. my-model-v1"}
+                    value={aiSettings.model === "custom" || aiSettings.model === "default" ? "" : aiSettings.model}
                     onChange={(e) =>
                       setAiSettings((prev) => ({ ...prev, model: e.target.value || "default" }))
                     }
@@ -2391,6 +2392,14 @@ export default function Dashboard() {
                   <p className="text-xs text-amber-600 flex items-center gap-1">
                     <Key className="h-3 w-3" />
                     Use your own Z-AI API key for higher limits and priority access.
+                  </p>
+                )}
+                {aiSettings.provider === "openrouter" && aiSettings.model === "custom" && (
+                  <p className="text-xs text-gray-400">
+                    Enter any OpenRouter model ID, e.g. deepseek/deepseek-v4-flash, google/gemini-2.5-pro, etc.{" "}
+                    <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-emerald-600 underline">
+                      Browse models
+                    </a>
                   </p>
                 )}
               </div>
