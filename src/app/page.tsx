@@ -47,6 +47,7 @@ import {
   Mail,
   Phone as PhoneIcon,
   Filter,
+  RotateCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -651,7 +652,7 @@ export default function Dashboard() {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Upload handler
+  // Upload handler — two-phase: upload first, then analyze
   const handleUpload = async () => {
     const composedJD = composeJobDescription(jdForm);
 
@@ -677,7 +678,9 @@ export default function Dashboard() {
     let successCount = 0;
     let errorCount = 0;
     const total = files.length;
+    const candidateIds: string[] = [];
 
+    // Phase 1: Upload files and extract text (fast)
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const formData = new FormData();
@@ -694,26 +697,65 @@ export default function Dashboard() {
 
         const data = await res.json();
 
-        if (res.ok && data.success) {
-          successCount++;
+        if (res.ok && data.success && data.candidateId) {
+          candidateIds.push(data.candidateId);
         } else {
           errorCount++;
           toast({
-            title: `Error processing ${file.name}`,
-            description: data.error || "Failed to process resume",
+            title: `Error uploading ${file.name}`,
+            description: data.error || "Failed to upload resume",
             variant: "destructive",
           });
         }
       } catch {
         errorCount++;
         toast({
-          title: `Error processing ${file.name}`,
+          title: `Error uploading ${file.name}`,
           description: "Network error occurred",
           variant: "destructive",
         });
       }
 
-      setUploadProgress(Math.round(((i + 1) / total) * 100));
+      setUploadProgress(Math.round(((i + 1) / total) * 50)); // 0-50% for upload phase
+    }
+
+    // Refresh candidates to show "processing" status
+    if (candidateIds.length > 0) {
+      await fetchCandidates();
+    }
+
+    // Phase 2: Run AI analysis for each uploaded candidate
+    for (let i = 0; i < candidateIds.length; i++) {
+      const cid = candidateIds[i];
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidateId: cid }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          successCount++;
+        } else {
+          errorCount++;
+          toast({
+            title: "AI Analysis Failed",
+            description: data.error || "Failed to analyze resume. Try a faster AI model.",
+            variant: "destructive",
+          });
+        }
+      } catch {
+        errorCount++;
+        toast({
+          title: "AI Analysis Failed",
+          description: "Network error — the AI model may have timed out. Try a faster model like DeepSeek V3 (Free).",
+          variant: "destructive",
+        });
+      }
+
+      setUploadProgress(50 + Math.round(((i + 1) / candidateIds.length) * 50)); // 50-100% for analysis phase
     }
 
     setIsUploading(false);
@@ -722,8 +764,15 @@ export default function Dashboard() {
 
     if (successCount > 0) {
       toast({
-        title: "Processing Complete",
+        title: "Screening Complete",
         description: `Successfully analyzed ${successCount} of ${total} resume(s)${errorCount > 0 ? `. ${errorCount} failed.` : "."}`,
+      });
+      fetchCandidates();
+    } else if (errorCount > 0) {
+      toast({
+        title: "Screening Failed",
+        description: `All ${total} resume(s) failed analysis. Try a faster AI model (e.g., DeepSeek V3 Free).`,
+        variant: "destructive",
       });
       fetchCandidates();
     }
@@ -748,6 +797,43 @@ export default function Dashboard() {
     } finally {
       setIsLoadingDetail(false);
     }
+  };
+
+  // Retry analysis for error/processing candidates
+  const handleRetryAnalysis = async (candidateId: string) => {
+    // Update local state to show processing
+    setCandidates((prev) =>
+      prev.map((c) =>
+        c.id === candidateId
+          ? { ...c, status: "processing", recommendation: "Processing", scoring: 0, candidateOverview: "Re-analyzing resume..." }
+          : c
+      )
+    );
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "Analysis Complete", description: "Resume has been re-analyzed successfully." });
+      } else {
+        toast({
+          title: "Analysis Failed",
+          description: data.error || "Try a faster AI model like DeepSeek V3 (Free).",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Analysis Failed",
+        description: "Network error. Try a faster AI model like DeepSeek V3 (Free).",
+        variant: "destructive",
+      });
+    }
+    fetchCandidates();
   };
 
   // Delete candidate
@@ -829,6 +915,8 @@ export default function Dashboard() {
     rec: string
   ): "default" | "secondary" | "destructive" | "outline" => {
     const lower = rec.toLowerCase();
+    if (lower === "processing") return "outline";
+    if (lower === "error") return "destructive";
     if (lower.includes("strong hire")) return "default";
     if (lower.includes("hire") && !lower.includes("no")) return "secondary";
     if (lower.includes("no hire")) return "destructive";
@@ -1379,7 +1467,9 @@ export default function Dashboard() {
               {isUploading && (
                 <div className="mt-4">
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Processing resumes...</span>
+                    <span className="text-gray-600">
+                      {uploadProgress <= 50 ? "Uploading & extracting text..." : "AI analyzing resumes..."}
+                    </span>
                     <span className="text-gray-600">{uploadProgress}%</span>
                   </div>
                   <Progress value={uploadProgress} className="h-2" />
@@ -1568,8 +1658,11 @@ export default function Dashboard() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium text-sm text-gray-900">
+                            <p className="font-medium text-sm text-gray-900 flex items-center gap-1.5">
                               {candidate.fileName}
+                              {candidate.status === "processing" && (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                              )}
                             </p>
                             <p className="text-xs text-gray-500 mt-0.5 line-clamp-1 max-w-[280px]">
                               {candidate.candidateOverview}
@@ -1578,9 +1671,9 @@ export default function Dashboard() {
                         </TableCell>
                         <TableCell>
                           <div
-                            className={`inline-flex items-center justify-center h-9 w-9 rounded-lg border font-bold text-sm ${getScoreBg(candidate.scoring)} ${getScoreColor(candidate.scoring)}`}
+                            className={`inline-flex items-center justify-center h-9 w-9 rounded-lg border font-bold text-sm ${candidate.status === "processing" ? "bg-blue-50 border-blue-200 text-blue-500" : candidate.status === "error" ? "bg-red-50 border-red-200 text-red-500" : `${getScoreBg(candidate.scoring)} ${getScoreColor(candidate.scoring)}`}`}
                           >
-                            {candidate.scoring}
+                            {candidate.status === "processing" ? "..." : candidate.scoring}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1588,7 +1681,9 @@ export default function Dashboard() {
                             variant={getRecommendationVariant(
                               candidate.recommendation
                             )}
+                            className={candidate.status === "processing" ? "animate-pulse" : ""}
                           >
+                            {candidate.status === "processing" && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                             {candidate.recommendation}
                           </Badge>
                         </TableCell>
@@ -1604,6 +1699,17 @@ export default function Dashboard() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {candidate.status === "error" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-amber-600 hover:text-amber-700"
+                                onClick={() => handleRetryAnalysis(candidate.id)}
+                              >
+                                <RotateCw className="h-3.5 w-3.5 mr-1" />
+                                Retry
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1816,12 +1922,13 @@ export default function Dashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className={`inline-flex items-center justify-center h-9 w-9 rounded-lg border font-bold text-sm ${getScoreBg(candidate.scoring)} ${getScoreColor(candidate.scoring)}`}>
-                              {candidate.scoring}
+                            <div className={`inline-flex items-center justify-center h-9 w-9 rounded-lg border font-bold text-sm ${candidate.status === "processing" ? "bg-blue-50 border-blue-200 text-blue-500" : candidate.status === "error" ? "bg-red-50 border-red-200 text-red-500" : `${getScoreBg(candidate.scoring)} ${getScoreColor(candidate.scoring)}`}`}>
+                              {candidate.status === "processing" ? "..." : candidate.scoring}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getRecommendationVariant(candidate.recommendation)}>
+                            <Badge variant={getRecommendationVariant(candidate.recommendation)} className={candidate.status === "processing" ? "animate-pulse" : ""}>
+                              {candidate.status === "processing" && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                               {candidate.recommendation}
                             </Badge>
                           </TableCell>
@@ -1830,6 +1937,11 @@ export default function Dashboard() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {candidate.status === "error" && (
+                                <Button variant="ghost" size="sm" className="h-8 px-2 text-amber-600 hover:text-amber-700" onClick={() => handleRetryAnalysis(candidate.id)}>
+                                  <RotateCw className="h-3.5 w-3.5 mr-1" />Retry
+                                </Button>
+                              )}
                               <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => handleViewCandidate(candidate.id)}>
                                 <Eye className="h-3.5 w-3.5 mr-1" />View
                               </Button>
