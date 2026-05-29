@@ -226,6 +226,7 @@ export default function Dashboard() {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [isCustomModelMode, setIsCustomModelMode] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<"screen" | "directory">("screen");
@@ -360,15 +361,27 @@ export default function Dashboard() {
       const res = await fetch("/api/ai-settings");
       const data = await res.json();
       if (data.settings) {
+        const provider = data.settings.provider || "z-ai";
+        const model = data.settings.model || "default";
         setAiSettings({
-          provider: data.settings.provider || "z-ai",
-          model: data.settings.model || "default",
+          provider,
+          model,
           apiKey: data.settings.apiKey || "",
           baseUrl: data.settings.baseUrl || "",
           temperature: data.settings.temperature ?? 0.7,
           maxTokens: data.settings.maxTokens ?? 4096,
           hasApiKey: data.settings.hasApiKey || false,
         });
+        // Detect if the saved model is a custom model (not in preset list)
+        if (provider === "openrouter") {
+          const presetValues = getModelOptions("openrouter").map(opt => opt.value);
+          if (!presetValues.includes(model)) {
+            setIsCustomModelMode(true);
+          }
+        }
+        if (provider === "custom") {
+          setIsCustomModelMode(true);
+        }
       }
       setIsAdminUser(data.isAdmin === true);
     } catch {
@@ -396,15 +409,24 @@ export default function Dashboard() {
       if (res.ok) {
         toast({ title: "Settings Saved", description: "AI model settings updated successfully." });
         if (data.settings) {
+          const savedProvider = data.settings.provider || "z-ai";
+          const savedModel = data.settings.model || "default";
           setAiSettings({
-            provider: data.settings.provider || "z-ai",
-            model: data.settings.model || "default",
+            provider: savedProvider,
+            model: savedModel,
             apiKey: data.settings.apiKey || "",
             baseUrl: data.settings.baseUrl || "",
             temperature: data.settings.temperature ?? 0.7,
             maxTokens: data.settings.maxTokens ?? 4096,
             hasApiKey: data.settings.hasApiKey || false,
           });
+          // Re-detect custom model mode after save
+          if (savedProvider === "openrouter") {
+            const presetValues = getModelOptions("openrouter").map(opt => opt.value);
+            setIsCustomModelMode(!presetValues.includes(savedModel));
+          } else {
+            setIsCustomModelMode(savedProvider === "custom");
+          }
         }
       } else {
         toast({ title: "Error", description: data.error || "Failed to save settings", variant: "destructive" });
@@ -2308,7 +2330,7 @@ export default function Dashboard() {
                     {aiSettings.provider === "z-ai" && aiSettings.model !== "z-ai-api-key"
                       ? "Free built-in AI — no configuration needed"
                       : aiSettings.hasApiKey || aiSettings.apiKey
-                        ? `Model: ${aiSettings.model === "default" || aiSettings.model === "z-ai-api-key" ? "Default" : aiSettings.model}`
+                        ? `Model: ${aiSettings.model === "default" || aiSettings.model === "z-ai-api-key" || aiSettings.model === "custom" ? "Default" : aiSettings.model}`
                         : "⚠️ API key required"}
                   </p>
                 </div>
@@ -2331,6 +2353,7 @@ export default function Dashboard() {
                       baseUrl: "",
                       hasApiKey: false,
                     }));
+                    setIsCustomModelMode(value === "custom");
                     setTestResult(null);
                   }}
                 >
@@ -2354,20 +2377,50 @@ export default function Dashboard() {
                   <Cpu className="h-3.5 w-3.5" />
                   {aiSettings.provider === "z-ai" ? "Access Mode" : "Model"}
                 </Label>
-                {(aiSettings.provider === "custom" || (aiSettings.provider === "openrouter" && aiSettings.model === "custom")) ? (
-                  <Input
-                    placeholder={aiSettings.provider === "openrouter" ? "e.g. deepseek/deepseek-v4-flash" : "e.g. my-model-v1"}
-                    value={aiSettings.model === "custom" || aiSettings.model === "default" ? "" : aiSettings.model}
-                    onChange={(e) =>
-                      setAiSettings((prev) => ({ ...prev, model: e.target.value || "default" }))
-                    }
-                    className="text-sm"
-                  />
+                {(aiSettings.provider === "custom" || isCustomModelMode) ? (
+                  <div className="space-y-1.5">
+                    <Input
+                      placeholder={aiSettings.provider === "openrouter" ? "e.g. deepseek/deepseek-v4-flash" : "e.g. my-model-v1"}
+                      value={aiSettings.model === "custom" || aiSettings.model === "default" ? "" : aiSettings.model}
+                      onChange={(e) =>
+                        setAiSettings((prev) => ({ ...prev, model: e.target.value || "custom" }))
+                      }
+                      className="text-sm"
+                    />
+                    {aiSettings.provider === "openrouter" && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCustomModelMode(false);
+                            setAiSettings((prev) => ({ ...prev, model: getModelOptions("openrouter")[0].value }));
+                            setTestResult(null);
+                          }}
+                          className="text-xs text-emerald-600 hover:text-emerald-700 underline flex items-center gap-1"
+                        >
+                          ← Back to preset models
+                        </button>
+                        <a
+                          href="https://openrouter.ai/models"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-700 underline flex items-center gap-1"
+                        >
+                          Browse models
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <Select
                     value={aiSettings.model}
                     onValueChange={(value) => {
-                      setAiSettings((prev) => ({ ...prev, model: value, apiKey: "", hasApiKey: false }));
+                      if (value === "custom") {
+                        setIsCustomModelMode(true);
+                        setAiSettings((prev) => ({ ...prev, model: "custom" }));
+                      } else {
+                        setAiSettings((prev) => ({ ...prev, model: value, apiKey: "", hasApiKey: false }));
+                      }
                       setTestResult(null);
                     }}
                   >
@@ -2383,7 +2436,7 @@ export default function Dashboard() {
                     </SelectContent>
                   </Select>
                 )}
-                {aiSettings.provider === "z-ai" && aiSettings.model === "default" && (
+                {aiSettings.provider === "z-ai" && aiSettings.model === "default" && !isCustomModelMode && (
                   <p className="text-xs text-gray-400">
                     Free built-in AI with no API key needed. Has rate limits.
                   </p>
@@ -2392,14 +2445,6 @@ export default function Dashboard() {
                   <p className="text-xs text-amber-600 flex items-center gap-1">
                     <Key className="h-3 w-3" />
                     Use your own Z-AI API key for higher limits and priority access.
-                  </p>
-                )}
-                {aiSettings.provider === "openrouter" && aiSettings.model === "custom" && (
-                  <p className="text-xs text-gray-400">
-                    Enter any OpenRouter model ID, e.g. deepseek/deepseek-v4-flash, google/gemini-2.5-pro, etc.{" "}
-                    <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-emerald-600 underline">
-                      Browse models
-                    </a>
                   </p>
                 )}
               </div>
