@@ -3,14 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-/**
- * Helper: Check if current user is admin
- */
-function isSessionAdmin(session: { user?: unknown }) {
-  return ((session.user as Record<string, unknown> | undefined)?.role as string) === "admin";
-}
-
-// GET /api/templates/[id] - Get a single template (available to all users)
+// GET /api/templates/[id] - Get a single template
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -41,7 +34,7 @@ export async function GET(
   }
 }
 
-// PUT /api/templates/[id] - Update a template (admin only)
+// PUT /api/templates/[id] - Update a template (all authenticated users)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -50,13 +43,6 @@ export async function PUT(
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    if (!isSessionAdmin(session)) {
-      return NextResponse.json(
-        { error: "Forbidden: Only administrators can edit templates" },
-        { status: 403 }
-      );
     }
 
     const { id } = await params;
@@ -104,7 +90,7 @@ export async function PUT(
   }
 }
 
-// PATCH /api/templates/[id] - Increment usage count (available to all users)
+// PATCH /api/templates/[id] - Increment usage count
 export async function PATCH(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -131,7 +117,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/templates/[id] - Delete a template (admin only)
+// DELETE /api/templates/[id] - Delete a template (all authenticated users)
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -140,13 +126,6 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    if (!isSessionAdmin(session)) {
-      return NextResponse.json(
-        { error: "Forbidden: Only administrators can delete templates" },
-        { status: 403 }
-      );
     }
 
     const { id } = await params;
