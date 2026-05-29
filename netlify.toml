@@ -10,7 +10,6 @@
 
 [functions]
   node_bundler = "esbuild"
-  maxDuration = 26
 
 [[headers]]
   for = "/api/*"
