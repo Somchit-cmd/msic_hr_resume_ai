@@ -6,8 +6,8 @@ import { db } from "@/lib/db";
 /**
  * Helper: Check if current user is admin
  */
-function isSessionAdmin(session: NonNullable<Awaited<ReturnType<typeof getServerSession>>>) {
-  return (session.user as unknown as { role: string }).role === "admin";
+function isSessionAdmin(session: { user?: unknown }) {
+  return ((session.user as Record<string, unknown> | undefined)?.role as string) === "admin";
 }
 
 // GET /api/templates/[id] - Get a single template (available to all users)
