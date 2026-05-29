@@ -961,19 +961,21 @@ export default function Dashboard() {
                     <FolderOpen className="h-3.5 w-3.5" />
                     Templates{templates.length > 0 ? ` (${templates.length})` : ""}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 h-7 text-xs"
-                    onClick={() => {
-                      setTemplateName(jdForm.jobTitle || "");
-                      setIsSaveDialogOpen(true);
-                    }}
-                    disabled={!isFormValid()}
-                  >
-                    <BookmarkPlus className="h-3.5 w-3.5" />
-                    Save as Template
-                  </Button>
+                  {isAdminUser && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 h-7 text-xs"
+                      onClick={() => {
+                        setTemplateName(jdForm.jobTitle || "");
+                        setIsSaveDialogOpen(true);
+                      }}
+                      disabled={!isFormValid()}
+                    >
+                      <BookmarkPlus className="h-3.5 w-3.5" />
+                      Save as Template
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -2222,27 +2224,31 @@ export default function Dashboard() {
                           >
                             <Copy className="h-3.5 w-3.5 text-emerald-600" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => {
-                              setEditingTemplateId(template.id);
-                              setEditTemplateName(template.name);
-                            }}
-                            title="Rename template"
-                          >
-                            <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => setDeleteTemplateId(template.id)}
-                            title="Delete template"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-red-400" />
-                          </Button>
+                          {isAdminUser && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => {
+                                  setEditingTemplateId(template.id);
+                                  setEditTemplateName(template.name);
+                                }}
+                                title="Rename template"
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => setDeleteTemplateId(template.id)}
+                                title="Delete template"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

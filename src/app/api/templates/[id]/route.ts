@@ -3,7 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-// GET /api/templates/[id] - Get a single template
+/**
+ * Helper: Check if current user is admin
+ */
+function isSessionAdmin(session: NonNullable<Awaited<ReturnType<typeof getServerSession>>>) {
+  return (session.user as unknown as { role: string }).role === "admin";
+}
+
+// GET /api/templates/[id] - Get a single template (available to all users)
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,7 +41,7 @@ export async function GET(
   }
 }
 
-// PUT /api/templates/[id] - Update a template
+// PUT /api/templates/[id] - Update a template (admin only)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -45,7 +52,13 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = (session.user as { id: string }).id;
+    if (!isSessionAdmin(session)) {
+      return NextResponse.json(
+        { error: "Forbidden: Only administrators can edit templates" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
 
     const existing = await db.jDTemplate.findUnique({ where: { id } });
@@ -54,10 +67,6 @@ export async function PUT(
         { error: "Template not found" },
         { status: 404 }
       );
-    }
-
-    if (existing.userId !== userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -95,7 +104,7 @@ export async function PUT(
   }
 }
 
-// PATCH /api/templates/[id] - Increment usage count
+// PATCH /api/templates/[id] - Increment usage count (available to all users)
 export async function PATCH(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -122,7 +131,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/templates/[id] - Delete a template
+// DELETE /api/templates/[id] - Delete a template (admin only)
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -133,7 +142,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = (session.user as { id: string }).id;
+    if (!isSessionAdmin(session)) {
+      return NextResponse.json(
+        { error: "Forbidden: Only administrators can delete templates" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
 
     const existing = await db.jDTemplate.findUnique({ where: { id } });
@@ -142,10 +157,6 @@ export async function DELETE(
         { error: "Template not found" },
         { status: 404 }
       );
-    }
-
-    if (existing.userId !== userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     await db.jDTemplate.delete({ where: { id } });

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-// GET /api/templates - List all templates for the current user
+// GET /api/templates - List all templates (shared across all users)
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -11,10 +11,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = (session.user as { id: string }).id;
-
     const templates = await db.jDTemplate.findMany({
-      where: { userId },
       orderBy: [{ usageCount: "desc" }, { updatedAt: "desc" }],
     });
 
